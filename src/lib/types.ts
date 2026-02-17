@@ -18,6 +18,8 @@ export type Client = {
   assigned_agent_id: string | null;
   status: 'active' | 'inactive' | 'churned';
   notes: string | null;
+  cltv?: number;
+  remaining_balance?: number;
   created_at: string;
 };
 

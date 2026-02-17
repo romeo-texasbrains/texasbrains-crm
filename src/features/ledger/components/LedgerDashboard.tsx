@@ -7,7 +7,7 @@ import { StatCard } from '@/components/ui/StatCard';
 import { getLedger } from '../api';
 import { ProjectLedger } from '@/lib/types';
 import { Briefcase, CheckCircle, Clock, FileText, Plus } from 'lucide-react';
-import { AddProjectModal } from './AddProjectModal';
+import { NewEntryModal } from '@/features/dashboard/components/NewEntryModal';
 
 export const LedgerDashboard = () => {
     const [data, setData] = useState<ProjectLedger[]>([]);
@@ -58,7 +58,7 @@ export const LedgerDashboard = () => {
                 </button>
             </header>
 
-            <AddProjectModal
+            <NewEntryModal
                 isOpen={isModalOpen}
                 onClose={() => setIsModalOpen(false)}
                 onSuccess={loadLedger}

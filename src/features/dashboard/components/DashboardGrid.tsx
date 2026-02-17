@@ -20,8 +20,7 @@ import {
     OutstandingClient,
 } from '../api';
 import { AddClientModal } from '@/features/clients/components/AddClientModal';
-import { AddProjectModal } from '@/features/ledger/components/AddProjectModal';
-import { AddPaymentModal } from '@/features/income/components/AddPaymentModal';
+import { NewEntryModal } from './NewEntryModal';
 
 export const DashboardGrid = () => {
     const [stats, setStats] = useState({
@@ -39,8 +38,7 @@ export const DashboardGrid = () => {
     const [outstanding, setOutstanding] = useState<OutstandingClient[]>([]);
     const [loading, setLoading] = useState(true);
     const [isClientModalOpen, setIsClientModalOpen] = useState(false);
-    const [isProjectModalOpen, setIsProjectModalOpen] = useState(false);
-    const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+    const [isEntryModalOpen, setIsEntryModalOpen] = useState(false);
 
     async function loadDashboard() {
         try {
@@ -83,11 +81,8 @@ export const DashboardGrid = () => {
                 <button onClick={() => setIsClientModalOpen(true)} className="panze-btn-primary !py-2 !px-5">
                     <UserPlus size={15} /> <span>New Client</span>
                 </button>
-                <button onClick={() => setIsProjectModalOpen(true)} className="panze-btn-secondary flex items-center gap-2">
-                    <Briefcase size={15} /> <span>New Project</span>
-                </button>
-                <button onClick={() => setIsPaymentModalOpen(true)} className="panze-btn-secondary flex items-center gap-2">
-                    <CreditCard size={15} /> <span>Record Payment</span>
+                <button onClick={() => setIsEntryModalOpen(true)} className="panze-btn-secondary flex items-center gap-2">
+                    <Briefcase size={15} /> <span>New Entry</span>
                 </button>
             </div>
 
@@ -287,8 +282,7 @@ export const DashboardGrid = () => {
 
             {/* Modals */}
             <AddClientModal isOpen={isClientModalOpen} onClose={() => setIsClientModalOpen(false)} onSuccess={loadDashboard} />
-            <AddProjectModal isOpen={isProjectModalOpen} onClose={() => setIsProjectModalOpen(false)} onSuccess={loadDashboard} />
-            <AddPaymentModal isOpen={isPaymentModalOpen} onClose={() => setIsPaymentModalOpen(false)} onSuccess={loadDashboard} />
+            <NewEntryModal isOpen={isEntryModalOpen} onClose={() => setIsEntryModalOpen(false)} onSuccess={loadDashboard} />
         </div>
     );
 };

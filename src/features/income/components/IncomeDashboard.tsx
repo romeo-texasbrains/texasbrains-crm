@@ -7,13 +7,13 @@ import { getIncomeRecords, createBankAccount, createIncomeCategory } from '../ap
 import { IncomeRecord } from '@/lib/types';
 import { EntryModal } from '@/components/ui/EntryModal';
 import { Plus, Filter, Loader2, Wallet, Layers } from 'lucide-react';
-import { AddPaymentModal } from './AddPaymentModal';
+import { NewEntryModal } from '@/features/dashboard/components/NewEntryModal';
 
 export default function IncomeDashboard() {
     const [data, setData] = useState<IncomeRecord[]>([]);
     const [loading, setLoading] = useState(true);
     const [modalType, setModalType] = useState<'account' | 'category' | null>(null);
-    const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+    const [isEntryModalOpen, setIsEntryModalOpen] = useState(false);
 
     const loadData = async () => {
         try {
@@ -48,7 +48,7 @@ export default function IncomeDashboard() {
                         </button>
                     </div>
                     <button
-                        onClick={() => setIsPaymentModalOpen(true)}
+                        onClick={() => setIsEntryModalOpen(true)}
                         className="panze-btn-primary"
                     >
                         <Plus size={16} />
@@ -120,9 +120,9 @@ export default function IncomeDashboard() {
                 }}
             />
 
-            <AddPaymentModal
-                isOpen={isPaymentModalOpen}
-                onClose={() => setIsPaymentModalOpen(false)}
+            <NewEntryModal
+                isOpen={isEntryModalOpen}
+                onClose={() => setIsEntryModalOpen(false)}
                 onSuccess={loadData}
             />
         </div>

@@ -1,11 +1,10 @@
-
 'use client';
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { getClients } from '../api';
 import { Client } from '@/lib/types';
-import { UserPlus, Mail, Phone, Calendar, Loader2, Building2, Search, ChevronRight, User } from 'lucide-react';
+import { UserPlus, Mail, Phone, Calendar, Loader2, Building2, Search, ChevronRight, User, DollarSign } from 'lucide-react';
 import { AddClientModal } from './AddClientModal';
 
 export const ClientsList = () => {
@@ -55,7 +54,10 @@ export const ClientsList = () => {
             {/* Header */}
             <div className="flex flex-col gap-4">
                 <div>
-                    <h3 className="text-xl md:text-2xl font-black text-gray-800 tracking-tight">Client Directory</h3>
+                    <div className="flex items-center gap-2">
+                        <h3 className="text-xl md:text-2xl font-black text-gray-800 tracking-tight text-panze-primary">Client Directory</h3>
+                        <div className="w-1.5 h-1.5 rounded-full bg-panze-primary animate-pulse" />
+                    </div>
                     <p className="text-xs md:text-sm text-gray-400 font-bold uppercase tracking-widest mt-1">Management Console</p>
                 </div>
                 <div className="flex items-center gap-2 md:gap-3 flex-wrap">
@@ -110,17 +112,32 @@ export const ClientsList = () => {
                             </div>
                             <div className="flex items-center gap-2">
                                 <span className={`panze-badge text-[9px] ${client.status === 'active' ? 'panze-badge-success' :
-                                        client.status === 'inactive' ? 'panze-badge-warning' :
-                                            'bg-red-100 text-red-700'
+                                    client.status === 'inactive' ? 'panze-badge-warning' :
+                                        'bg-red-100 text-red-700'
                                     }`}>
                                     {client.status}
                                 </span>
                                 <ChevronRight size={14} className="text-gray-300" />
                             </div>
                         </div>
-                        <div className="mt-2 flex items-center gap-4 text-[11px] text-gray-400">
+
+                        {/* Mobile Financial Metrics */}
+                        <div className="mt-3 grid grid-cols-2 gap-2 border-t border-gray-50 pt-3">
+                            <div>
+                                <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">CLTV (Life)</p>
+                                <p className="text-xs font-bold text-gray-800">${(client.cltv || 0).toLocaleString()}</p>
+                            </div>
+                            <div>
+                                <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Remaining</p>
+                                <p className={`text-xs font-bold ${(client.remaining_balance || 0) > 0 ? 'text-orange-600' : 'text-gray-400'}`}>
+                                    ${(client.remaining_balance || 0).toLocaleString()}
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="mt-2 flex items-center justify-between text-[10px] text-gray-400">
                             {client.email && (
-                                <span className="flex items-center gap-1 truncate">
+                                <span className="flex items-center gap-1 truncate max-w-[140px]">
                                     <Mail size={10} /> {client.email}
                                 </span>
                             )}
@@ -151,8 +168,9 @@ export const ClientsList = () => {
                                 <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">Client</th>
                                 <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">Contact</th>
                                 <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">Industry</th>
-                                <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">Source</th>
-                                <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Status</th>
+                                <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">CLTV Value</th>
+                                <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">Remaining</th>
+                                <th className="px-10 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Status</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-50">
@@ -193,8 +211,19 @@ export const ClientsList = () => {
                                     <td className="px-8 py-5 text-sm text-gray-500 font-medium">
                                         {client.industry || '—'}
                                     </td>
-                                    <td className="px-8 py-5 text-sm text-gray-500 font-medium">
-                                        {client.source || '—'}
+                                    <td className="px-8 py-5">
+                                        <div className="flex flex-col">
+                                            <span className="text-sm font-bold text-gray-800">${(client.cltv || 0).toLocaleString()}</span>
+                                            <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Life Value</span>
+                                        </div>
+                                    </td>
+                                    <td className="px-8 py-5">
+                                        <div className="flex flex-col">
+                                            <span className={`text-sm font-bold ${(client.remaining_balance || 0) > 0 ? 'text-orange-600' : 'text-gray-400'}`}>
+                                                ${(client.remaining_balance || 0).toLocaleString()}
+                                            </span>
+                                            <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Outstanding</span>
+                                        </div>
                                     </td>
                                     <td className="px-8 py-5 text-right">
                                         <div className="flex items-center justify-end gap-2">
@@ -213,7 +242,7 @@ export const ClientsList = () => {
                             ))}
                             {filteredClients.length === 0 && (
                                 <tr>
-                                    <td colSpan={5} className="px-10 py-32 text-center">
+                                    <td colSpan={6} className="px-10 py-32 text-center">
                                         <div className="flex flex-col items-center gap-4 opacity-30">
                                             <UserPlus size={48} className="text-gray-400" />
                                             <p className="text-xs font-black text-gray-400 uppercase tracking-[0.2em]">

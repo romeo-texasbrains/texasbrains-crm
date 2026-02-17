@@ -1,7 +1,7 @@
 
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
@@ -16,6 +16,15 @@ import {
 
 export default function MainLayout({ children }: { children: React.ReactNode }) {
     const pathname = usePathname();
+    const [isStandalone, setIsStandalone] = useState(false);
+
+    useEffect(() => {
+        const mq = window.matchMedia('(display-mode: standalone)');
+        setIsStandalone(mq.matches);
+        const handler = (e: MediaQueryListEvent) => setIsStandalone(e.matches);
+        mq.addEventListener('change', handler);
+        return () => mq.removeEventListener('change', handler);
+    }, []);
 
     const navItems = [
         { name: 'Overview', href: '/', icon: LayoutDashboard },
@@ -98,7 +107,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
 
             {/* Mobile Bottom Tab Bar */}
             <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/90 backdrop-blur-xl border-t border-gray-200/50"
-                style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+                style={{ paddingBottom: isStandalone ? '0px' : 'env(safe-area-inset-bottom)' }}
             >
                 <div className="flex items-center justify-around px-2 py-1.5">
                     {navItems.map((item) => {
@@ -109,8 +118,8 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
                                 key={item.name}
                                 href={item.href}
                                 className={`flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl transition-all min-w-[56px] ${isActive
-                                        ? 'text-panze-purple'
-                                        : 'text-gray-400'
+                                    ? 'text-panze-purple'
+                                    : 'text-gray-400'
                                     }`}
                             >
                                 <Icon size={20} strokeWidth={isActive ? 2.5 : 1.5} />
