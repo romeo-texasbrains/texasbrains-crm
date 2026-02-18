@@ -561,6 +561,7 @@ export const ClientDetailPage: React.FC<ClientDetailPageProps> = ({ clientId }) 
                 isOpen={isPaymentModalOpen}
                 onClose={() => setIsPaymentModalOpen(false)}
                 onSuccess={loadData}
+                preselectedClientId={clientId}
             />
         </div>
     );

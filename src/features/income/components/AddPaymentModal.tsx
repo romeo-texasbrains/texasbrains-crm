@@ -12,9 +12,10 @@ interface AddPaymentModalProps {
     isOpen: boolean;
     onClose: () => void;
     onSuccess: () => void;
+    preselectedClientId?: string;
 }
 
-export const AddPaymentModal: React.FC<AddPaymentModalProps> = ({ isOpen, onClose, onSuccess }) => {
+export const AddPaymentModal: React.FC<AddPaymentModalProps> = ({ isOpen, onClose, onSuccess, preselectedClientId }) => {
     const [loading, setLoading] = useState(false);
     const [projects, setProjects] = useState<ProjectLedger[]>([]);
     const [accounts, setAccounts] = useState<BankAccount[]>([]);
@@ -35,13 +36,18 @@ export const AddPaymentModal: React.FC<AddPaymentModalProps> = ({ isOpen, onClos
         if (isOpen) {
             Promise.all([getLedger(), getBankAccounts(), getIncomeCategories()])
                 .then(([ledgerData, accountsData, categoriesData]) => {
-                    setProjects(ledgerData);
+                    // Filter projects by client if preselectedClientId is provided
+                    const filteredProjects = preselectedClientId
+                        ? ledgerData.filter(p => p.client_id === preselectedClientId)
+                        : ledgerData;
+
+                    setProjects(filteredProjects);
                     setAccounts(accountsData);
                     setCategories(categoriesData);
                 })
                 .catch(err => console.error('Failed to load payment requirements', err));
         }
-    }, [isOpen]);
+    }, [isOpen, preselectedClientId]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
