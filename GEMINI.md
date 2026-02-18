@@ -41,3 +41,14 @@ Texas Brains CRM is a professional customer relationship management system desig
 2. Run `npm install`.
 3. Copy `.env.example` to `.env.local` and fill in your Supabase credentials.
 4. Run `npm run dev` to start the development server.
+
+## Features & Logic (`src/features/`)
+- **Clients**: Comprehensive CRM for lead and client tracking with 360° views.
+- **Income**: Financial transaction management, payment recording, and bank account tracking.
+- **Ledger**: Project-based financial visibility, contract tracking, and outstanding balance management.
+- **Performance**: Agent productivity and sales target monitoring.
+
+## Recent Architectural Updates
+- **Cross-Feature Integration**: Enhanced communication between `clients` and `income` features (e.g., filtered project selection in payment modals).
+- **Universal Design**: Full adoption of Tailwind CSS v4 and Apple-grade minimalism.
+- **Data Integrity**: Unified `ProjectLedger` types across all financial modules.
