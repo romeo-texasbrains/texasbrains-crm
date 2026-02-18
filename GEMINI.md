@@ -52,3 +52,4 @@ Texas Brains CRM is a professional customer relationship management system desig
 - **Cross-Feature Integration**: Enhanced communication between `clients` and `income` features (e.g., filtered project selection in payment modals).
 - **Universal Design**: Full adoption of Tailwind CSS v4 and Apple-grade minimalism.
 - **Data Integrity**: Unified `ProjectLedger` types across all financial modules.
+- **Build Optimization**: Fixed Vercel deployment issues by correcting `package.json` dependencies (Next.js 16/17, Tailwind v4, React Compiler).
