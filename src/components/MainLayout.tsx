@@ -35,7 +35,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
     ];
 
     return (
-        <div className="flex min-h-screen bg-background text-foreground font-sans">
+        <div className="flex h-screen md:h-auto md:min-h-screen bg-background text-foreground font-sans overflow-hidden md:overflow-visible">
             {/* Desktop Sidebar — hidden on mobile */}
             <aside className="hidden md:flex w-72 bg-white border-r border-gray-100 fixed h-full z-20 flex-col">
                 <div className="px-8 py-10">
@@ -74,7 +74,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
             </aside>
 
             {/* Content Area */}
-            <main className="flex-1 md:ml-72 min-h-screen bg-background relative pb-24 md:pb-0 overflow-x-hidden">
+            <main className="flex-1 md:ml-72 h-dvh md:h-auto overflow-y-auto md:overflow-visible bg-background relative pb-16 md:pb-0 overflow-x-hidden">
                 {/* Desktop Header — hidden on mobile */}
                 <header className="hidden md:flex h-20 px-12 items-center justify-between absolute top-0 left-0 right-0 z-10 text-gray-800">
                     <div>
@@ -99,17 +99,17 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
 
                 {/* Main Content — responsive padding */}
                 <div className="pt-4 px-4 pb-4 md:pt-24 md:px-12 md:pb-12">
-                    <div className="bg-white rounded-2xl md:rounded-[40px] border border-gray-100 p-4 md:p-10 min-h-[calc(100vh-200px)] md:min-h-[calc(100vh-136px)] shadow-xl shadow-purple-500/5">
+                    <div className="bg-white rounded-2xl md:rounded-[40px] border border-gray-100 p-4 md:p-10 min-h-[calc(100dvh-180px)] md:min-h-[calc(100vh-136px)] shadow-xl shadow-purple-500/5">
                         {children}
                     </div>
                 </div>
             </main>
 
             {/* Mobile Bottom Tab Bar */}
-            <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/90 backdrop-blur-xl border-t border-gray-200/50 safe-area-bottom"
+            <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-2xl border-t border-gray-200/50"
                 style={{ paddingBottom: 'env(safe-area-inset-bottom, 12px)' }}
             >
-                <div className="flex items-center justify-around px-2 py-1.5">
+                <div className="flex items-center justify-around px-2 pt-2 pb-0">
                     {navItems.map((item) => {
                         const isActive = pathname === item.href;
                         const Icon = item.icon;
