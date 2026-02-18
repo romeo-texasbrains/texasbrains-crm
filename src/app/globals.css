@@ -37,6 +37,7 @@
   --background-image-panze-gradient: var(--panze-gradient);
 }
 
+html,
 body {
   background-color: var(--background);
   color: var(--foreground);
@@ -45,6 +46,8 @@ body {
   -moz-osx-font-smoothing: grayscale;
   /* Prevent over-scroll bounce on iOS */
   overscroll-behavior: none;
+  overflow-x: hidden;
+  width: 100%;
 }
 
 /* PWA standalone mode — ensure full-screen fill */

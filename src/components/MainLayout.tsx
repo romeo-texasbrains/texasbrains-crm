@@ -74,7 +74,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
             </aside>
 
             {/* Content Area */}
-            <main className="flex-1 md:ml-72 min-h-screen bg-background relative pb-20 md:pb-0">
+            <main className="flex-1 md:ml-72 min-h-screen bg-background relative pb-24 md:pb-0 overflow-x-hidden">
                 {/* Desktop Header — hidden on mobile */}
                 <header className="hidden md:flex h-20 px-12 items-center justify-between absolute top-0 left-0 right-0 z-10 text-gray-800">
                     <div>
@@ -106,8 +106,8 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
             </main>
 
             {/* Mobile Bottom Tab Bar */}
-            <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/90 backdrop-blur-xl border-t border-gray-200/50"
-                style={{ paddingBottom: isStandalone ? '0px' : 'env(safe-area-inset-bottom)' }}
+            <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/90 backdrop-blur-xl border-t border-gray-200/50 safe-area-bottom"
+                style={{ paddingBottom: 'env(safe-area-inset-bottom, 12px)' }}
             >
                 <div className="flex items-center justify-around px-2 py-1.5">
                     {navItems.map((item) => {
