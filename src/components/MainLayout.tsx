@@ -107,7 +107,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
 
             {/* Mobile Bottom Tab Bar */}
             <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-2xl border-t border-gray-200/50"
-                style={{ paddingBottom: 'env(safe-area-inset-bottom, 12px)' }}
+                style={{ paddingBottom: isStandalone ? '4px' : 'env(safe-area-inset-bottom, 12px)' }}
             >
                 <div className="flex items-center justify-around px-2 pt-2 pb-0">
                     {navItems.map((item) => {

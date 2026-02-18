@@ -53,4 +53,4 @@ Texas Brains CRM is a professional customer relationship management system desig
 - **Universal Design**: Full adoption of Tailwind CSS v4 and Apple-grade minimalism.
 - **Data Integrity**: Unified `ProjectLedger` types across all financial modules.
 - **Build Optimization**: Fixed Vercel deployment issues by correcting `package.json` dependencies (Next.js 16/17, Tailwind v4, React Compiler).
-- **PWA/Mobile Optimization**: Fixed horizontal scrolling on Ledger page, optimized PWA navigation for iPhone safe areas, and implemented global overflow protection.
+- **PWA/Mobile Optimization**: Fixed horizontal scrolling on Ledger page, optimized PWA navigation for iPhone safe areas (removed blank space in standalone mode), and implemented global overflow protection.
