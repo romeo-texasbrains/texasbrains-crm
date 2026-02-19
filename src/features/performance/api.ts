@@ -55,21 +55,31 @@ interface PerformancePayment {
 }
 
 export async function getAgentPerformance(agentId: string, startDate: string, endDate: string) {
-    const { data: projects, error: projectsError } = await supabase
+    let projectsQuery = supabase
         .from('projects')
         .select('*')
-        .eq('agent_id', agentId)
         .gte('created_at', startDate)
         .lte('created_at', endDate);
 
+    if (agentId !== 'all') {
+        projectsQuery = projectsQuery.eq('agent_id', agentId);
+    }
+
+    const { data: projects, error: projectsError } = await projectsQuery;
+
     if (projectsError) throw projectsError;
 
-    const { data: payments, error: paymentsError } = await supabase
+    let paymentsQuery = supabase
         .from('payments')
         .select('amount, project_id, projects!inner(agent_id)')
-        .eq('projects.agent_id', agentId)
         .gte('payment_date', startDate)
         .lte('payment_date', endDate);
+
+    if (agentId !== 'all') {
+        paymentsQuery = paymentsQuery.eq('projects.agent_id', agentId);
+    }
+
+    const { data: payments, error: paymentsError } = await paymentsQuery;
 
     if (paymentsError) throw paymentsError;
 
@@ -112,8 +122,8 @@ export interface FullPerformanceData {
     ytd: PeriodMetrics;
 }
 
-export async function getFullAgentPerformance(agentId: string): Promise<FullPerformanceData> {
-    const now = new Date();
+export async function getFullAgentPerformance(agentId: string, baseDate?: Date): Promise<FullPerformanceData> {
+    const now = baseDate || new Date();
     const year = now.getFullYear();
     const month = now.getMonth();
 
@@ -121,25 +131,43 @@ export async function getFullAgentPerformance(agentId: string): Promise<FullPerf
     const yearStart = new Date(year, 0, 1).toISOString();
     const yearEnd = new Date(year, 11, 31, 23, 59, 59, 999).toISOString();
 
-    const { data: allTargets } = await supabase
+    let targetsQuery = supabase
         .from('sales_targets')
         .select('*')
-        .eq('agent_id', agentId)
         .gte('start_date', yearStart)
         .lte('start_date', yearEnd)
         .order('start_date');
 
+    if (agentId !== 'all') {
+        targetsQuery = targetsQuery.eq('agent_id', agentId);
+    }
+
+    const { data: allTargets } = await targetsQuery;
+
     const targets = (allTargets || []) as SalesTarget[];
+
+    // If "All Agents", aggregate targets for all active agents
+    const aggregateTargetForMonth = (m: number) => {
+        if (agentId !== 'all') {
+            return targets.find(t => {
+                const tStart = new Date(t.start_date);
+                return t.period_type === 'monthly' && tStart.getFullYear() === year && tStart.getMonth() === m;
+            })?.target_amount || 0;
+        }
+
+        // For 'all' agents, sum up targets for everyone
+        return targets.filter(t => {
+            const tStart = new Date(t.start_date);
+            return t.period_type === 'monthly' && tStart.getFullYear() === year && tStart.getMonth() === m;
+        }).reduce((sum, t) => sum + (t.target_amount || 0), 0);
+    };
 
     // Get the current month's performance (MTD)
     const mtdRange = getMonthRange(year, month);
     const mtdPerf = await getAgentPerformance(agentId, mtdRange.start, mtdRange.end);
 
     // Find monthly target for current month
-    const mtdTarget = targets.find(t => {
-        const tStart = new Date(t.start_date);
-        return t.period_type === 'monthly' && tStart.getFullYear() === year && tStart.getMonth() === month;
-    })?.target_amount || 0;
+    const mtdTarget = aggregateTargetForMonth(month);
 
     // QTD: sum all months in this quarter
     const quarterMonths = getQuarterMonths(month);
@@ -154,11 +182,8 @@ export async function getFullAgentPerformance(agentId: string): Promise<FullPerf
         qtdProjects += perf.count;
 
         // Sum monthly targets for QTD
-        const mTarget = targets.find(t => {
-            const tStart = new Date(t.start_date);
-            return t.period_type === 'monthly' && tStart.getFullYear() === year && tStart.getMonth() === m;
-        })?.target_amount || mtdTarget; // Fall back to current month target if not set
-        qtdTarget += mTarget;
+        const mTarget = aggregateTargetForMonth(m);
+        qtdTarget += mTarget || mtdTarget; // Fall back to current month target if not set
     }
 
     // YTD: sum all months Jan → current
@@ -176,11 +201,8 @@ export async function getFullAgentPerformance(agentId: string): Promise<FullPerf
         ytdCollections += perf.totalCollections;
         ytdProjects += perf.count;
 
-        const mTarget = targets.find(t => {
-            const tStart = new Date(t.start_date);
-            return t.period_type === 'monthly' && tStart.getFullYear() === year && tStart.getMonth() === m;
-        })?.target_amount || mtdTarget;
-        ytdTarget += mTarget;
+        const mTarget = aggregateTargetForMonth(m);
+        ytdTarget += mTarget || mtdTarget;
     }
 
     // Add QTD totals to YTD
@@ -224,9 +246,9 @@ export interface LeaderboardEntry {
     projectCount: number;
 }
 
-export async function getTeamLeaderboard(): Promise<LeaderboardEntry[]> {
+export async function getTeamLeaderboard(baseDate?: Date): Promise<LeaderboardEntry[]> {
     const agents = await getAgents();
-    const now = new Date();
+    const now = baseDate || new Date();
     const year = now.getFullYear();
     const month = now.getMonth();
     const mtdRange = getMonthRange(year, month);

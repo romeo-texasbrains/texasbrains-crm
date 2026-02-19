@@ -1,43 +1,88 @@
-
 import { supabase } from '@/lib/supabase';
 
-export async function getDashboardStats() {
-    const { data: payments, error: pError } = await supabase.from('payments').select('amount, payment_date');
-    const { count: projectCount, error: prError } = await supabase.from('projects').select('*', { count: 'exact', head: true }).eq('status', 'active');
-    const { count: clientCount, error: cError } = await supabase.from('clients').select('*', { count: 'exact', head: true });
-    const { count: activeClientCount, error: acError } = await supabase.from('clients').select('*', { count: 'exact', head: true }).eq('status', 'active');
-    const { data: projects, error: allPrError } = await supabase.from('projects').select('total_amount');
+export type DateFilter = 'all' | 'this_month' | 'last_month' | 'ytd';
 
-    if (pError || prError || cError || allPrError || acError) {
-        console.error('Dashboard Stats Error:', { pError, prError, cError, allPrError, acError });
+export function getDateRange(filter: DateFilter): { start: string, end: string } | null {
+    if (filter === 'all') return null;
+    const now = new Date();
+
+    if (filter === 'this_month') {
+        const start = new Date(now.getFullYear(), now.getMonth(), 1);
+        const end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+        return { start: start.toISOString(), end: end.toISOString() };
+    }
+
+    if (filter === 'last_month') {
+        const start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+        const end = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
+        return { start: start.toISOString(), end: end.toISOString() };
+    }
+
+    if (filter === 'ytd') {
+        const start = new Date(now.getFullYear(), 0, 1);
+        const end = new Date(now.getFullYear(), 11, 31, 23, 59, 59);
+        return { start: start.toISOString(), end: end.toISOString() };
+    }
+
+    return null;
+}
+
+export async function getDashboardStats(filter: DateFilter = 'all') {
+    const range = getDateRange(filter);
+
+    let paymentsQuery = supabase.from('payments').select('amount, payment_date');
+    let clientsQuery = supabase.from('clients').select('created_at', { count: 'exact' });
+    let projectsQuery = supabase.from('projects').select('created_at', { count: 'exact' }).eq('status', 'active');
+
+    if (range) {
+        paymentsQuery = paymentsQuery.gte('payment_date', range.start).lte('payment_date', range.end);
+        clientsQuery = clientsQuery.gte('created_at', range.start).lte('created_at', range.end);
+        projectsQuery = projectsQuery.gte('created_at', range.start).lte('created_at', range.end);
+    }
+
+    const { data: periodPayments, error: pError } = await paymentsQuery;
+    const { count: periodProjects, error: prError } = await projectsQuery;
+    const { count: periodClients, error: cError } = await clientsQuery;
+
+    // For outstanding balance and MTD, we still need some all-time or specific data
+    const { data: allProjects } = await supabase.from('projects').select('total_amount').eq('status', 'active');
+    const { data: allPayments } = await supabase.from('payments').select('amount, payment_date');
+    const { count: totalActiveClients } = await supabase.from('clients').select('*', { count: 'exact', head: true }).eq('status', 'active');
+
+    if (pError || prError || cError) {
+        console.error('Dashboard Stats Error:', { pError, prError, cError });
         return {
-            totalRevenue: 0,
-            activeProjects: 0,
-            totalClients: 0,
-            activeClients: 0,
+            periodRevenue: 0,
+            periodProjects: 0,
+            periodClients: 0,
+            totalActiveClients: 0,
             outstandingBalance: 0,
             mtdRevenue: 0,
             collectionRate: 0,
         };
     }
 
-    const totalRevenue = payments?.reduce((sum, p) => sum + Number(p.amount), 0) || 0;
-    const totalProjectValue = projects?.reduce((sum, p) => sum + Number(p.total_amount), 0) || 0;
-    const outstandingBalance = totalProjectValue - totalRevenue;
-    const collectionRate = totalProjectValue > 0 ? (totalRevenue / totalProjectValue) * 100 : 0;
+    const periodRevenue = (periodPayments || []).reduce((sum, p) => sum + Number(p.amount), 0);
 
+    // Outstanding balance (All Time)
+    const totalAllTimeRevenue = (allPayments || []).reduce((sum, p) => sum + Number(p.amount), 0);
+    const totalProjectValue = (allProjects || []).reduce((sum, p) => sum + Number(p.total_amount), 0);
+    const outstandingBalance = totalProjectValue - totalAllTimeRevenue;
+    const collectionRate = totalProjectValue > 0 ? (totalAllTimeRevenue / totalProjectValue) * 100 : 0;
+
+    // MTD Revenue
     // MTD Revenue
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
-    const mtdRevenue = (payments || [])
-        .filter(p => p.payment_date >= startOfMonth)
-        .reduce((sum, p) => sum + Number(p.amount), 0);
+    const mtdRevenue = (allPayments || [])
+        .filter((p: any) => p.payment_date && p.payment_date >= startOfMonth)
+        .reduce((sum: number, p: any) => sum + Number(p.amount), 0);
 
     return {
-        totalRevenue,
-        activeProjects: projectCount || 0,
-        totalClients: clientCount || 0,
-        activeClients: activeClientCount || 0,
+        periodRevenue,
+        periodProjects: periodProjects || 0,
+        periodClients: periodClients || 0,
+        totalActiveClients: totalActiveClients || 0,
         outstandingBalance,
         mtdRevenue,
         collectionRate,
@@ -68,19 +113,27 @@ export async function getRevenueChartData() {
     return chartData;
 }
 
-export async function getLatestRegistrations() {
-    const { data, error } = await supabase
+export async function getLatestRegistrations(filter: DateFilter = 'all') {
+    const range = getDateRange(filter);
+    let query = supabase
         .from('clients')
         .select('*')
         .order('created_at', { ascending: false })
         .limit(5);
 
+    if (range) {
+        query = query.gte('created_at', range.start).lte('created_at', range.end);
+    }
+
+    const { data, error } = await query;
+
     if (error) throw error;
     return data;
 }
 
-export async function getLatestTransactions() {
-    const { data, error } = await supabase
+export async function getLatestTransactions(filter: DateFilter = 'all') {
+    const range = getDateRange(filter);
+    let query = supabase
         .from('payments')
         .select(`
             *,
@@ -88,6 +141,12 @@ export async function getLatestTransactions() {
         `)
         .order('payment_date', { ascending: false })
         .limit(5);
+
+    if (range) {
+        query = query.gte('payment_date', range.start).lte('payment_date', range.end);
+    }
+
+    const { data, error } = await query;
 
     if (error) throw error;
     return data;

@@ -9,7 +9,8 @@ import {
 } from 'recharts';
 import {
     CreditCard, Layout, Wallet, Loader2, TrendingUp,
-    UserPlus, DollarSign, AlertCircle, ChevronRight, Briefcase
+    UserPlus, DollarSign, AlertCircle, ChevronRight, Briefcase,
+    CheckCircle, Inbox, Users
 } from 'lucide-react';
 import {
     getDashboardStats,
@@ -21,13 +22,16 @@ import {
 } from '../api';
 import { AddClientModal } from '@/features/clients/components/AddClientModal';
 import { NewEntryModal } from './NewEntryModal';
+import { DashboardSkeleton } from './DashboardSkeleton';
+import { DateFilter } from '../api';
 
 export const DashboardGrid = () => {
+    const [dateFilter, setDateFilter] = useState<DateFilter>('all');
     const [stats, setStats] = useState({
-        totalRevenue: 0,
-        activeProjects: 0,
-        totalClients: 0,
-        activeClients: 0,
+        periodRevenue: 0,
+        periodProjects: 0,
+        periodClients: 0,
+        totalActiveClients: 0,
         outstandingBalance: 0,
         mtdRevenue: 0,
         collectionRate: 0,
@@ -41,12 +45,13 @@ export const DashboardGrid = () => {
     const [isEntryModalOpen, setIsEntryModalOpen] = useState(false);
 
     async function loadDashboard() {
+        setLoading(true);
         try {
             const [s, r, reg, tra, ost] = await Promise.all([
-                getDashboardStats(),
+                getDashboardStats(dateFilter),
                 getRevenueChartData(),
-                getLatestRegistrations(),
-                getLatestTransactions(),
+                getLatestRegistrations(dateFilter),
+                getLatestTransactions(dateFilter),
                 getOutstandingByClient(),
             ]);
             setStats(s);
@@ -63,35 +68,51 @@ export const DashboardGrid = () => {
 
     useEffect(() => {
         loadDashboard();
-    }, []);
+    }, [dateFilter]);
 
     if (loading) {
-        return (
-            <div className="h-[600px] flex flex-col items-center justify-center gap-4">
-                <Loader2 className="w-10 h-10 text-panze-purple animate-spin" />
-                <p className="text-xs font-black text-gray-400 uppercase tracking-[0.3em]">Loading Dashboard</p>
-            </div>
-        );
+        return <DashboardSkeleton />;
     }
 
     return (
         <div className="space-y-6 md:space-y-8 animate-in fade-in duration-1000">
-            {/* Quick Actions */}
-            <div className="flex items-center gap-2 md:gap-3 flex-wrap">
-                <button onClick={() => setIsClientModalOpen(true)} className="panze-btn-primary !py-2 !px-5">
-                    <UserPlus size={15} /> <span>New Client</span>
-                </button>
-                <button onClick={() => setIsEntryModalOpen(true)} className="panze-btn-secondary flex items-center gap-2">
-                    <Briefcase size={15} /> <span>New Entry</span>
-                </button>
+            {/* Quick Actions & Filters */}
+            <div className="flex items-center justify-between flex-wrap gap-4">
+                <div className="flex items-center gap-2 md:gap-3 flex-wrap">
+                    <button onClick={() => setIsClientModalOpen(true)} className="panze-btn-primary !py-2 !px-5">
+                        <UserPlus size={15} /> <span>New Client</span>
+                    </button>
+                    <button onClick={() => setIsEntryModalOpen(true)} className="panze-btn-secondary flex items-center gap-2">
+                        <Briefcase size={15} /> <span>New Entry</span>
+                    </button>
+                </div>
+
+                {/* Global Date Filter */}
+                <div className="flex items-center gap-2 bg-white border border-gray-100 rounded-xl p-1 shadow-sm">
+                    {(['all', 'ytd', 'last_month', 'this_month'] as DateFilter[]).map((filter) => (
+                        <button
+                            key={filter}
+                            onClick={() => setDateFilter(filter)}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${dateFilter === filter
+                                    ? 'bg-gray-100 text-gray-800'
+                                    : 'text-gray-400 hover:text-gray-600'
+                                }`}
+                        >
+                            {filter === 'all' && 'All Time'}
+                            {filter === 'ytd' && 'YTD'}
+                            {filter === 'last_month' && 'Last Month'}
+                            {filter === 'this_month' && 'This Month'}
+                        </button>
+                    ))}
+                </div>
             </div>
 
             {/* 4 Stat Cards */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <StatCard
-                    title="Total Revenue"
-                    value={`$${stats.totalRevenue.toLocaleString()}`}
-                    trend={{ value: "All Time", isPositive: true }}
+                    title={dateFilter === 'all' ? "Total Revenue" : "Revenue (Period)"}
+                    value={`$${stats.periodRevenue.toLocaleString()}`}
+                    trend={{ value: dateFilter === 'this_month' ? 'This Month' : dateFilter === 'last_month' ? 'Last Month' : dateFilter === 'ytd' ? 'Year to Date' : 'All Time', isPositive: true }}
                     icon={CreditCard}
                     colorClass="bg-purple-100 text-purple-600"
                 />
@@ -103,9 +124,9 @@ export const DashboardGrid = () => {
                     colorClass="bg-blue-100 text-blue-600"
                 />
                 <StatCard
-                    title="Active Projects"
-                    value={stats.activeProjects}
-                    trend={{ value: `${stats.totalClients} clients`, isPositive: true }}
+                    title={dateFilter === 'all' ? "Active Projects" : "New Projects"}
+                    value={stats.periodProjects}
+                    trend={{ value: `${stats.totalActiveClients} total active clients`, isPositive: true }}
                     icon={Layout}
                     colorClass="bg-emerald-100 text-emerald-600"
                 />
@@ -191,7 +212,13 @@ export const DashboardGrid = () => {
                             );
                         })}
                         {outstanding.length === 0 && (
-                            <p className="text-center text-xs text-gray-400 font-bold py-12">No outstanding balances 🎉</p>
+                            <div className="flex flex-col items-center justify-center py-12 px-6 text-center">
+                                <div className="w-12 h-12 bg-green-50 rounded-2xl flex items-center justify-center mb-3">
+                                    <CheckCircle size={24} className="text-green-500" />
+                                </div>
+                                <p className="text-sm font-bold text-gray-800">All caught up!</p>
+                                <p className="text-xs text-gray-400 mt-1">There are no outstanding balances from clients.</p>
+                            </div>
                         )}
                     </div>
                 </div>
@@ -230,7 +257,17 @@ export const DashboardGrid = () => {
                                 </tr>
                             ))}
                             {registrations.length === 0 && (
-                                <tr><td colSpan={3} className="py-8 text-center text-xs text-gray-400">No clients</td></tr>
+                                <tr>
+                                    <td colSpan={3} className="py-12">
+                                        <div className="flex flex-col items-center justify-center text-center px-4">
+                                            <div className="w-12 h-12 bg-gray-50 rounded-2xl flex items-center justify-center mb-3">
+                                                <Users size={24} className="text-gray-400" />
+                                            </div>
+                                            <p className="text-sm font-bold text-gray-800">No clients yet</p>
+                                            <p className="text-xs text-gray-400 mt-1 max-w-[200px]">Add your first client to start tracking their journey.</p>
+                                        </div>
+                                    </td>
+                                </tr>
                             )}
                         </tbody>
                     </table></div>
@@ -273,7 +310,17 @@ export const DashboardGrid = () => {
                                 </tr>
                             ))}
                             {transactions.length === 0 && (
-                                <tr><td colSpan={3} className="py-8 text-center text-xs text-gray-400">No transactions</td></tr>
+                                <tr>
+                                    <td colSpan={3} className="py-12">
+                                        <div className="flex flex-col items-center justify-center text-center px-4">
+                                            <div className="w-12 h-12 bg-gray-50 rounded-2xl flex items-center justify-center mb-3">
+                                                <Inbox size={24} className="text-gray-400" />
+                                            </div>
+                                            <p className="text-sm font-bold text-gray-800">No recent payments</p>
+                                            <p className="text-xs text-gray-400 mt-1">Recorded payments will show up here.</p>
+                                        </div>
+                                    </td>
+                                </tr>
                             )}
                         </tbody>
                     </table></div>

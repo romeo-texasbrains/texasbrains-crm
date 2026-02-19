@@ -17,6 +17,8 @@ import {
 } from 'lucide-react';
 import { TargetModal } from './TargetModal';
 import { AddAgentModal } from './AddAgentModal';
+import { PerformanceSkeleton } from './PerformanceSkeleton';
+import { MonthPicker } from '@/components/ui/MonthPicker';
 
 type Period = 'mtd' | 'qtd' | 'ytd';
 
@@ -25,7 +27,11 @@ interface PerformanceOverviewProps {
 }
 
 export const PerformanceOverview: React.FC<PerformanceOverviewProps> = ({ agentId: initialAgentId }) => {
-    const [selectedAgentId, setSelectedAgentId] = useState(initialAgentId);
+    const [selectedAgentId, setSelectedAgentId] = useState<string>('all');
+    const [selectedMonth, setSelectedMonth] = useState<string>(() => {
+        const d = new Date();
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    });
     const [agents, setAgents] = useState<Profile[]>([]);
     const [perfData, setPerfData] = useState<FullPerformanceData | null>(null);
     const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
@@ -38,9 +44,12 @@ export const PerformanceOverview: React.FC<PerformanceOverviewProps> = ({ agentI
     const loadData = useCallback(async () => {
         setLoading(true);
         try {
+            const [yearStr, monthStr] = selectedMonth.split('-');
+            const baseDate = new Date(Number(yearStr), Number(monthStr) - 1, 1);
+
             const [agentList, fullPerf] = await Promise.all([
                 getAgents(),
-                getFullAgentPerformance(selectedAgentId),
+                getFullAgentPerformance(selectedAgentId, baseDate),
             ]);
             setAgents(agentList);
             setPerfData(fullPerf);
@@ -49,19 +58,22 @@ export const PerformanceOverview: React.FC<PerformanceOverviewProps> = ({ agentI
         } finally {
             setLoading(false);
         }
-    }, [selectedAgentId]);
+    }, [selectedAgentId, selectedMonth]);
 
     const loadLeaderboard = useCallback(async () => {
         setLbLoading(true);
         try {
-            const lb = await getTeamLeaderboard();
+            const [yearStr, monthStr] = selectedMonth.split('-');
+            const baseDate = new Date(Number(yearStr), Number(monthStr) - 1, 1);
+
+            const lb = await getTeamLeaderboard(baseDate);
             setLeaderboard(lb);
         } catch (err) {
             console.error('Failed to load leaderboard', err);
         } finally {
             setLbLoading(false);
         }
-    }, []);
+    }, [selectedMonth]);
 
     useEffect(() => {
         loadData();
@@ -74,15 +86,11 @@ export const PerformanceOverview: React.FC<PerformanceOverviewProps> = ({ agentI
     };
 
     if (loading && agents.length === 0) {
-        return (
-            <div className="h-96 flex flex-col items-center justify-center gap-4">
-                <Loader2 className="w-10 h-10 text-panze-purple animate-spin" />
-                <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Analyzing Performance Data</p>
-            </div>
-        );
+        return <PerformanceSkeleton />;
     }
 
-    const now = new Date();
+    const [yearStr, monthStr] = selectedMonth.split('-');
+    const now = new Date(Number(yearStr), Number(monthStr) - 1, 1);
     const monthName = now.toLocaleString('en-US', { month: 'long' });
     const qNum = Math.floor(now.getMonth() / 3) + 1;
 
@@ -110,12 +118,19 @@ export const PerformanceOverview: React.FC<PerformanceOverviewProps> = ({ agentI
                             value={selectedAgentId}
                             onChange={(e) => setSelectedAgentId(e.target.value)}
                         >
-                            <option value={initialAgentId}>All Agents</option>
+                            <option value="all">All Agents</option>
                             {agents.map(a => (
                                 <option key={a.id} value={a.id}>{a.full_name}</option>
                             ))}
                         </select>
                         <Settings2 className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={14} />
+                    </div>
+
+                    <div className="flex-1 min-w-[140px] max-w-[180px]">
+                        <MonthPicker
+                            value={selectedMonth}
+                            onChange={(val) => setSelectedMonth(val)}
+                        />
                     </div>
 
                     <button onClick={() => setIsAgentModalOpen(true)} className="panze-btn-secondary !py-2 !px-3 md:!px-4">
@@ -257,8 +272,9 @@ export const PerformanceOverview: React.FC<PerformanceOverviewProps> = ({ agentI
                                 </div>
                             ))}
                             {leaderboard.length === 0 && (
-                                <div className="py-8 text-center text-xs font-bold text-gray-400">
-                                    No agents registered
+                                <div className="py-12 flex flex-col items-center justify-center text-center">
+                                    <Trophy size={32} className="text-gray-200 mb-3" />
+                                    <p className="text-xs font-bold text-gray-400">No agent rankings yet</p>
                                 </div>
                             )}
                         </div>
@@ -317,8 +333,11 @@ export const PerformanceOverview: React.FC<PerformanceOverviewProps> = ({ agentI
                                     ))}
                                     {leaderboard.length === 0 && (
                                         <tr>
-                                            <td colSpan={5} className="py-8 text-center text-xs font-bold text-gray-400">
-                                                No agents registered
+                                            <td colSpan={5} className="py-16 text-center">
+                                                <div className="flex flex-col items-center justify-center">
+                                                    <Trophy size={48} className="text-gray-200 mb-4" />
+                                                    <p className="text-sm font-bold text-gray-400">No agent rankings yet for this period</p>
+                                                </div>
                                             </td>
                                         </tr>
                                     )}
