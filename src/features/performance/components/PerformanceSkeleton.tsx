@@ -24,9 +24,9 @@ export const PerformanceSkeleton = () => {
                 <div className="h-8 md:h-9 w-16 bg-gray-100 rounded-lg animate-pulse" />
             </div>
 
-            {/* 3 Metric Cards Skeleton */}
-            <div className="grid grid-cols-3 gap-2 md:gap-4">
-                {[1, 2, 3].map((i) => (
+            {/* 2 Metric Cards Skeleton */}
+            <div className="grid grid-cols-2 gap-2 md:gap-4">
+                {[1, 2].map((i) => (
                     <div key={i} className="bg-white rounded-xl md:rounded-2xl border border-gray-100 p-3 md:p-5">
                         <div className="flex items-center justify-between mb-2 md:mb-3">
                             <div className="h-4 w-16 bg-gray-100 rounded-md animate-pulse" />

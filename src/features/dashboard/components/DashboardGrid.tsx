@@ -94,8 +94,8 @@ export const DashboardGrid = () => {
                             key={filter}
                             onClick={() => setDateFilter(filter)}
                             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${dateFilter === filter
-                                    ? 'bg-gray-100 text-gray-800'
-                                    : 'text-gray-400 hover:text-gray-600'
+                                ? 'bg-gray-100 text-gray-800'
+                                : 'text-gray-400 hover:text-gray-600'
                                 }`}
                         >
                             {filter === 'all' && 'All Time'}
@@ -108,16 +108,16 @@ export const DashboardGrid = () => {
             </div>
 
             {/* 4 Stat Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
                 <StatCard
-                    title={dateFilter === 'all' ? "Total Revenue" : "Revenue (Period)"}
+                    title={dateFilter === 'all' ? "Revenue Collected" : "Collected (Period)"}
                     value={`$${stats.periodRevenue.toLocaleString()}`}
                     trend={{ value: dateFilter === 'this_month' ? 'This Month' : dateFilter === 'last_month' ? 'Last Month' : dateFilter === 'ytd' ? 'Year to Date' : 'All Time', isPositive: true }}
                     icon={CreditCard}
                     colorClass="bg-purple-100 text-purple-600"
                 />
                 <StatCard
-                    title="MTD Revenue"
+                    title="MTD Collected"
                     value={`$${stats.mtdRevenue.toLocaleString()}`}
                     trend={{ value: "This Month", isPositive: true }}
                     icon={DollarSign}
@@ -152,7 +152,7 @@ export const DashboardGrid = () => {
                     </div>
                     <div className="h-[200px] md:h-[280px]">
                         <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={revenueData}>
+                            <BarChart data={revenueData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                                 <defs>
                                     <linearGradient id="purpleGradient" x1="0" y1="0" x2="0" y2="1">
                                         <stop offset="0%" stopColor="#7C3AED" />
@@ -161,7 +161,12 @@ export const DashboardGrid = () => {
                                 </defs>
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F3F4F6" />
                                 <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 600, fill: '#9CA3AF' }} dy={8} />
-                                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 600, fill: '#9CA3AF' }} />
+                                <YAxis
+                                    axisLine={false}
+                                    tickLine={false}
+                                    tick={{ fontSize: 10, fontWeight: 600, fill: '#9CA3AF' }}
+                                    tickFormatter={(val) => val >= 1000 ? `$${(val / 1000).toFixed(val % 1000 === 0 ? 0 : 1)}k` : `$${val}`}
+                                />
                                 <Tooltip
                                     cursor={{ fill: 'rgba(124, 58, 237, 0.05)' }}
                                     contentStyle={{ borderRadius: '12px', border: '1px solid #F3F4F6', boxShadow: '0 4px 12px rgba(0,0,0,0.08)', padding: '12px' }}

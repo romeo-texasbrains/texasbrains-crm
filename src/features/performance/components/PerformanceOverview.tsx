@@ -12,7 +12,7 @@ import {
 } from '../api';
 import { Profile } from '@/lib/types';
 import {
-    Target, DollarSign, Briefcase, UserPlus,
+    Target, DollarSign, UserPlus,
     Settings2, Loader2, Users, Trophy,
 } from 'lucide-react';
 import { TargetModal } from './TargetModal';
@@ -111,36 +111,40 @@ export const PerformanceOverview: React.FC<PerformanceOverviewProps> = ({ agentI
                     <p className="text-xs md:text-sm text-gray-400 font-bold mt-1">{periodLabel[activePeriod]}</p>
                 </div>
 
-                <div className="flex items-center gap-2 md:gap-3 flex-wrap">
-                    <div className="relative flex-1 min-w-[140px] max-w-[220px]">
-                        <select
-                            className="w-full bg-white border border-gray-200 rounded-xl px-3 md:px-4 py-2 md:py-2.5 text-sm font-semibold text-gray-700 outline-none focus:border-panze-purple transition-all appearance-none pr-8"
-                            value={selectedAgentId}
-                            onChange={(e) => setSelectedAgentId(e.target.value)}
-                        >
-                            <option value="all">All Agents</option>
-                            {agents.map(a => (
-                                <option key={a.id} value={a.id}>{a.full_name}</option>
-                            ))}
-                        </select>
-                        <Settings2 className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={14} />
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 md:gap-3">
+                    <div className="flex items-center gap-2 w-full sm:w-auto sm:flex-1">
+                        <div className="relative flex-1 max-w-[220px]">
+                            <select
+                                className="w-full bg-white border border-gray-200 rounded-xl px-3 md:px-4 py-2 md:py-2.5 text-sm font-semibold text-gray-700 outline-none focus:border-panze-purple transition-all appearance-none pr-8"
+                                value={selectedAgentId}
+                                onChange={(e) => setSelectedAgentId(e.target.value)}
+                            >
+                                <option value="all">All Agents</option>
+                                {agents.map(a => (
+                                    <option key={a.id} value={a.id}>{a.full_name}</option>
+                                ))}
+                            </select>
+                            <Settings2 className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={14} />
+                        </div>
+
+                        <div className="flex-1 max-w-[180px]">
+                            <MonthPicker
+                                value={selectedMonth}
+                                onChange={(val) => setSelectedMonth(val)}
+                            />
+                        </div>
                     </div>
 
-                    <div className="flex-1 min-w-[140px] max-w-[180px]">
-                        <MonthPicker
-                            value={selectedMonth}
-                            onChange={(val) => setSelectedMonth(val)}
-                        />
+                    <div className="flex items-center gap-2 w-full sm:w-auto">
+                        <button onClick={() => setIsAgentModalOpen(true)} className="panze-btn-secondary !py-2 !px-3 md:!px-4 flex-1 sm:flex-none justify-center">
+                            <UserPlus size={14} />
+                        </button>
+
+                        <button onClick={() => setIsModalOpen(true)} className="panze-btn-primary !py-2 !px-3 md:!px-4 flex-[2] sm:flex-none justify-center">
+                            <Target size={14} />
+                            <span>Set Target</span>
+                        </button>
                     </div>
-
-                    <button onClick={() => setIsAgentModalOpen(true)} className="panze-btn-secondary !py-2 !px-3 md:!px-4">
-                        <UserPlus size={14} />
-                    </button>
-
-                    <button onClick={() => setIsModalOpen(true)} className="panze-btn-primary !py-2 !px-3 md:!px-4">
-                        <Target size={14} />
-                        <span className="hidden sm:inline">Set Target</span>
-                    </button>
                 </div>
             </header>
 
@@ -163,15 +167,14 @@ export const PerformanceOverview: React.FC<PerformanceOverviewProps> = ({ agentI
                 ))}
             </div>
 
-            {/* 3 Metric Cards for selected period */}
             {currentMetrics && (
-                <div className="grid grid-cols-3 gap-2 md:gap-4">
-                    {/* Sales */}
+                <div className="grid grid-cols-2 gap-2 md:gap-4">
+                    {/* Revenue Collected */}
                     <div className="bg-white rounded-xl md:rounded-2xl border border-gray-100 p-3 md:p-5">
                         <div className="flex items-center justify-between mb-2 md:mb-3">
                             <div className="flex items-center gap-1.5 md:gap-2 text-gray-400">
                                 <DollarSign size={12} className="md:w-[14px] md:h-[14px]" />
-                                <span className="text-[8px] md:text-[10px] font-bold uppercase tracking-widest">Sales</span>
+                                <span className="text-[8px] md:text-[10px] font-bold uppercase tracking-widest">Revenue Collected</span>
                             </div>
                             <span className={`text-[10px] md:text-xs font-bold ${currentMetrics.achievement >= 100 ? 'text-green-600' :
                                 currentMetrics.achievement >= 50 ? 'text-orange-500' : 'text-red-500'
@@ -179,8 +182,9 @@ export const PerformanceOverview: React.FC<PerformanceOverviewProps> = ({ agentI
                                 {currentMetrics.achievement.toFixed(0)}%
                             </span>
                         </div>
-                        <p className="text-lg md:text-2xl font-black text-gray-800 tabular-nums">${currentMetrics.sales.toLocaleString()}</p>
-                        {currentMetrics.target > 0 && (
+                        <p className="text-lg md:text-2xl font-black text-gray-800 tabular-nums">${currentMetrics.collections.toLocaleString()}</p>
+
+                        {currentMetrics.target > 0 ? (
                             <div className="mt-2 md:mt-3">
                                 <div className="w-full bg-gray-100 rounded-full h-1 md:h-1.5">
                                     <div
@@ -190,31 +194,30 @@ export const PerformanceOverview: React.FC<PerformanceOverviewProps> = ({ agentI
                                         style={{ width: `${Math.min(currentMetrics.achievement, 100)}%` }}
                                     />
                                 </div>
-                                <p className="text-[8px] md:text-[10px] text-gray-400 mt-1 font-medium tabular-nums">
-                                    Target: ${currentMetrics.target.toLocaleString()}
-                                </p>
+                                <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between mt-2 gap-1 xl:gap-0">
+                                    <p className="text-[9px] md:text-[10px] text-gray-500 font-medium tabular-nums">
+                                        Target: <span className="font-bold text-gray-700">${currentMetrics.target.toLocaleString()}</span>
+                                    </p>
+                                    <p className="text-[9px] md:text-[10px] text-gray-400 font-medium tabular-nums">
+                                        Contractual: <span className="text-gray-500">${currentMetrics.sales.toLocaleString()}</span>
+                                    </p>
+                                </div>
                             </div>
+                        ) : (
+                            <p className="text-[8px] md:text-[10px] text-gray-400 mt-2 md:mt-3 font-medium tabular-nums">
+                                Contractual: ${currentMetrics.sales.toLocaleString()}
+                            </p>
                         )}
-                    </div>
-
-                    {/* Collections */}
-                    <div className="bg-white rounded-xl md:rounded-2xl border border-gray-100 p-3 md:p-5">
-                        <div className="flex items-center gap-1.5 md:gap-2 text-gray-400 mb-2 md:mb-3">
-                            <Briefcase size={12} className="md:w-[14px] md:h-[14px]" />
-                            <span className="text-[8px] md:text-[10px] font-bold uppercase tracking-widest">Collected</span>
-                        </div>
-                        <p className="text-lg md:text-2xl font-black text-gray-800 tabular-nums">${currentMetrics.collections.toLocaleString()}</p>
-                        <p className="text-[8px] md:text-[10px] text-gray-400 mt-2 md:mt-3 font-medium hidden sm:block">Payments received in period</p>
                     </div>
 
                     {/* Projects */}
                     <div className="bg-white rounded-xl md:rounded-2xl border border-gray-100 p-3 md:p-5">
                         <div className="flex items-center gap-1.5 md:gap-2 text-gray-400 mb-2 md:mb-3">
                             <Target size={12} className="md:w-[14px] md:h-[14px]" />
-                            <span className="text-[8px] md:text-[10px] font-bold uppercase tracking-widest">Projects</span>
+                            <span className="text-[8px] md:text-[10px] font-bold uppercase tracking-widest">Deals Closed</span>
                         </div>
                         <p className="text-lg md:text-2xl font-black text-gray-800 tabular-nums">{currentMetrics.projectCount}</p>
-                        <p className="text-[8px] md:text-[10px] text-gray-400 mt-2 md:mt-3 font-medium hidden sm:block">Deals signed in period</p>
+                        <p className="text-[8px] md:text-[10px] text-gray-400 mt-2 md:mt-3 font-medium hidden sm:block">Total projects signed in period</p>
                     </div>
                 </div>
             )}
@@ -252,7 +255,7 @@ export const PerformanceOverview: React.FC<PerformanceOverviewProps> = ({ agentI
                                     </div>
                                     <div className="flex-1 min-w-0">
                                         <p className="text-xs font-semibold text-gray-700 truncate">{entry.agent.full_name}</p>
-                                        <p className="text-[10px] text-gray-400 tabular-nums">${entry.mtdSales.toLocaleString()}</p>
+                                        <p className="text-[10px] text-gray-400 tabular-nums">${entry.mtdCollected.toLocaleString()}</p>
                                     </div>
                                     <div className="flex items-center gap-1.5 shrink-0">
                                         <div className="w-10 bg-gray-100 rounded-full h-1">
@@ -286,7 +289,7 @@ export const PerformanceOverview: React.FC<PerformanceOverviewProps> = ({ agentI
                                     <tr className="border-b border-gray-50 bg-gray-50/30">
                                         <th className="px-5 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-widest w-10">#</th>
                                         <th className="px-5 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-widest">Agent</th>
-                                        <th className="px-5 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-right">Sales</th>
+                                        <th className="px-5 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-right">Collected</th>
                                         <th className="px-5 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-right">Target</th>
                                         <th className="px-5 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-right w-40">Achievement</th>
                                     </tr>
@@ -310,7 +313,7 @@ export const PerformanceOverview: React.FC<PerformanceOverviewProps> = ({ agentI
                                                     <span className="text-sm font-semibold text-gray-700">{entry.agent.full_name}</span>
                                                 </div>
                                             </td>
-                                            <td className="px-5 py-3 text-right text-sm font-bold text-gray-800 tabular-nums">${entry.mtdSales.toLocaleString()}</td>
+                                            <td className="px-5 py-3 text-right text-sm font-bold text-gray-800 tabular-nums">${entry.mtdCollected.toLocaleString()}</td>
                                             <td className="px-5 py-3 text-right text-sm text-gray-400 tabular-nums">${entry.mtdTarget.toLocaleString()}</td>
                                             <td className="px-5 py-3 text-right">
                                                 <div className="flex items-center justify-end gap-2">

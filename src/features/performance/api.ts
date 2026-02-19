@@ -217,21 +217,21 @@ export async function getFullAgentPerformance(agentId: string, baseDate?: Date):
             collections: mtdPerf.totalCollections,
             projectCount: mtdPerf.count,
             target: mtdTarget,
-            achievement: mtdTarget > 0 ? (mtdPerf.totalSales / mtdTarget) * 100 : 0,
+            achievement: mtdTarget > 0 ? (mtdPerf.totalCollections / mtdTarget) * 100 : 0,
         },
         qtd: {
             sales: qtdSales,
             collections: qtdCollections,
             projectCount: qtdProjects,
             target: qtdTarget,
-            achievement: qtdTarget > 0 ? (qtdSales / qtdTarget) * 100 : 0,
+            achievement: qtdTarget > 0 ? (qtdCollections / qtdTarget) * 100 : 0,
         },
         ytd: {
             sales: ytdSales,
             collections: ytdCollections,
             projectCount: ytdProjects,
             target: ytdTarget,
-            achievement: ytdTarget > 0 ? (ytdSales / ytdTarget) * 100 : 0,
+            achievement: ytdTarget > 0 ? (ytdCollections / ytdTarget) * 100 : 0,
         },
     };
 }
@@ -240,7 +240,7 @@ export async function getFullAgentPerformance(agentId: string, baseDate?: Date):
 
 export interface LeaderboardEntry {
     agent: Profile;
-    mtdSales: number;
+    mtdCollected: number;
     mtdTarget: number;
     mtdAchievement: number;
     projectCount: number;
@@ -272,9 +272,9 @@ export async function getTeamLeaderboard(baseDate?: Date): Promise<LeaderboardEn
 
         entries.push({
             agent,
-            mtdSales: perf.totalSales,
+            mtdCollected: perf.totalCollections,
             mtdTarget: target,
-            mtdAchievement: target > 0 ? (perf.totalSales / target) * 100 : 0,
+            mtdAchievement: target > 0 ? (perf.totalCollections / target) * 100 : 0,
             projectCount: perf.count,
         });
     }
