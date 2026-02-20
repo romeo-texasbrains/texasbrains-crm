@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useEffect, useState, useCallback } from 'react';
@@ -13,12 +12,16 @@ import {
 import { Profile } from '@/lib/types';
 import {
     Target, DollarSign, UserPlus,
-    Settings2, Loader2, Users, Trophy,
+    Loader2, Users, Trophy, ChevronDown, Calendar, ArrowUpRight,
+    TrendingUp, Search, Filter, ChevronRight
 } from 'lucide-react';
 import { TargetModal } from './TargetModal';
 import { AddAgentModal } from './AddAgentModal';
 import { PerformanceSkeleton } from './PerformanceSkeleton';
 import { MonthPicker } from '@/components/ui/MonthPicker';
+import { getAchievementColors, formatCurrency } from '@/lib/utils';
+import Link from 'next/link';
+import useSWR from 'swr';
 
 type Period = 'mtd' | 'qtd' | 'ytd';
 
@@ -32,60 +35,36 @@ export const PerformanceOverview: React.FC<PerformanceOverviewProps> = ({ agentI
         const d = new Date();
         return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
     });
-    const [agents, setAgents] = useState<Profile[]>([]);
-    const [perfData, setPerfData] = useState<FullPerformanceData | null>(null);
-    const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [lbLoading, setLbLoading] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isAgentModalOpen, setIsAgentModalOpen] = useState(false);
     const [activePeriod, setActivePeriod] = useState<Period>('mtd');
 
-    const loadData = useCallback(async () => {
-        setLoading(true);
-        try {
-            const [yearStr, monthStr] = selectedMonth.split('-');
-            const baseDate = new Date(Number(yearStr), Number(monthStr) - 1, 1);
+    const fetcher = async () => {
+        const [yearStr, monthStr] = selectedMonth.split('-');
+        const baseDate = new Date(Number(yearStr), Number(monthStr) - 1, 1);
 
-            const [agentList, fullPerf] = await Promise.all([
-                getAgents(),
-                getFullAgentPerformance(selectedAgentId, baseDate),
-            ]);
-            setAgents(agentList);
-            setPerfData(fullPerf);
-        } catch (err) {
-            console.error('Failed to load performance data', err);
-        } finally {
-            setLoading(false);
-        }
-    }, [selectedAgentId, selectedMonth]);
-
-    const loadLeaderboard = useCallback(async () => {
-        setLbLoading(true);
-        try {
-            const [yearStr, monthStr] = selectedMonth.split('-');
-            const baseDate = new Date(Number(yearStr), Number(monthStr) - 1, 1);
-
-            const lb = await getTeamLeaderboard(baseDate);
-            setLeaderboard(lb);
-        } catch (err) {
-            console.error('Failed to load leaderboard', err);
-        } finally {
-            setLbLoading(false);
-        }
-    }, [selectedMonth]);
-
-    useEffect(() => {
-        loadData();
-        loadLeaderboard();
-    }, [loadData, loadLeaderboard]);
-
-    const handleSuccess = () => {
-        loadData();
-        loadLeaderboard();
+        const [agentList, fullPerf, lb] = await Promise.all([
+            getAgents(),
+            getFullAgentPerformance(selectedAgentId, baseDate),
+            getTeamLeaderboard(baseDate)
+        ]);
+        return { agents: agentList, perfData: fullPerf, leaderboard: lb };
     };
 
-    if (loading && agents.length === 0) {
+    const { data, isLoading, mutate } = useSWR(`perf-${selectedAgentId}-${selectedMonth}`, fetcher, {
+        revalidateOnFocus: false,
+        revalidateIfStale: true,
+    });
+
+    const agents: Profile[] = data?.agents || [];
+    const perfData: FullPerformanceData | null = data?.perfData || null;
+    const leaderboard: LeaderboardEntry[] = data?.leaderboard || [];
+
+    const handleSuccess = () => {
+        mutate();
+    };
+
+    if (isLoading && agents.length === 0) {
         return <PerformanceSkeleton />;
     }
 
@@ -97,258 +76,261 @@ export const PerformanceOverview: React.FC<PerformanceOverviewProps> = ({ agentI
     const periodLabel: Record<Period, string> = {
         mtd: monthName,
         qtd: `Q${qNum} ${now.getFullYear()}`,
-        ytd: `${now.getFullYear()} Year-to-Date`,
+        ytd: `${now.getFullYear()} Annual`,
     };
 
     const currentMetrics: PeriodMetrics | null = perfData ? perfData[activePeriod] : null;
 
     return (
-        <div className="space-y-5 md:space-y-8 animate-in fade-in duration-700">
-            {/* Header */}
-            <header className="flex flex-col gap-4">
-                <div>
-                    <h1 className="text-xl md:text-3xl font-black text-gray-800 tracking-tight">Performance</h1>
-                    <p className="text-xs md:text-sm text-gray-400 font-bold mt-1">{periodLabel[activePeriod]}</p>
+        <div className="pb-12 animate-in fade-in duration-700 space-y-8">
+            {/* Command Header Area */}
+            <div className="flex flex-col gap-6">
+                <div className="flex items-end justify-between px-2">
+                    <div>
+                        <h1 className="text-3xl md:text-5xl font-black text-gray-900 tracking-tighter">Performance</h1>
+                        <p className="text-[10px] md:text-sm text-gray-400 font-black mt-1 uppercase tracking-[0.2em] flex items-center gap-2">
+                            <TrendingUp size={14} className="text-panze-purple" /> {periodLabel[activePeriod]} Review
+                        </p>
+                    </div>
                 </div>
 
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 md:gap-3">
-                    <div className="flex items-center gap-2 w-full sm:w-auto sm:flex-1">
-                        <div className="relative flex-1 max-w-[220px]">
+                <div className="flex flex-col xl:flex-row items-stretch xl:items-center justify-between gap-4 bg-white/50 backdrop-blur-xl p-2 rounded-[32px] border border-white shadow-sm">
+                    {/* Filter Strip */}
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                        <div className="flex items-center bg-gray-100/50 px-4 py-2 rounded-2xl border border-gray-200/20 group">
+                            <Users size={16} className="text-gray-400" />
                             <select
-                                className="w-full bg-white border border-gray-200 rounded-xl px-3 md:px-4 py-2 md:py-2.5 text-sm font-semibold text-gray-700 outline-none focus:border-panze-purple transition-all appearance-none pr-8"
+                                className="bg-transparent pl-3 pr-8 text-[11px] font-black uppercase tracking-widest text-gray-700 outline-none appearance-none cursor-pointer"
                                 value={selectedAgentId}
                                 onChange={(e) => setSelectedAgentId(e.target.value)}
                             >
-                                <option value="all">All Agents</option>
-                                {agents.map(a => (
+                                <option value="all">Company Wide</option>
+                                {agents.map((a: Profile) => (
                                     <option key={a.id} value={a.id}>{a.full_name}</option>
                                 ))}
                             </select>
-                            <Settings2 className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={14} />
                         </div>
 
-                        <div className="flex-1 max-w-[180px]">
+                        <div className="flex items-center">
                             <MonthPicker
+                                variant="ghost"
                                 value={selectedMonth}
                                 onChange={(val) => setSelectedMonth(val)}
                             />
                         </div>
+
+                        <div className="hidden sm:block w-px h-8 bg-gray-200 mx-2" />
+
+                        <div className="flex items-center bg-gray-200/30 p-1 rounded-[20px]">
+                            {(['mtd', 'qtd', 'ytd'] as Period[]).map(p => (
+                                <button
+                                    key={p}
+                                    onClick={() => setActivePeriod(p)}
+                                    className={`px-6 py-2 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${activePeriod === p
+                                        ? 'bg-white text-panze-purple shadow-sm ring-1 ring-black/5'
+                                        : 'text-gray-500 hover:text-gray-700'
+                                        }`}
+                                >
+                                    {p}
+                                </button>
+                            ))}
+                        </div>
                     </div>
 
-                    <div className="flex items-center gap-2 w-full sm:w-auto">
-                        <button onClick={() => setIsAgentModalOpen(true)} className="panze-btn-secondary !py-2 !px-3 md:!px-4 flex-1 sm:flex-none justify-center">
-                            <UserPlus size={14} />
+                    {/* Quick Actions */}
+                    <div className="flex items-center gap-2 sm:px-2">
+                        <button
+                            onClick={() => setIsAgentModalOpen(true)}
+                            className="flex-1 sm:flex-none h-12 px-6 rounded-2xl bg-white border border-gray-200 text-gray-500 font-black text-[10px] uppercase tracking-widest hover:text-panze-purple transition-all flex items-center justify-center gap-2 active:scale-95"
+                        >
+                            <UserPlus size={16} />
+                            Add Agent
                         </button>
-
-                        <button onClick={() => setIsModalOpen(true)} className="panze-btn-primary !py-2 !px-3 md:!px-4 flex-[2] sm:flex-none justify-center">
-                            <Target size={14} />
-                            <span>Set Target</span>
+                        <button
+                            onClick={() => setIsModalOpen(true)}
+                            className="flex-[2] sm:flex-none h-12 px-8 rounded-2xl bg-panze-gradient text-white font-black text-[10px] uppercase tracking-widest shadow-lg shadow-purple-500/20 flex items-center justify-center gap-3 active:scale-[0.98] hover:brightness-110 transition-all"
+                        >
+                            <Target size={18} />
+                            Set Quota
                         </button>
                     </div>
                 </div>
-            </header>
+            </div>
 
             <TargetModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onSuccess={handleSuccess} agents={agents} />
             <AddAgentModal isOpen={isAgentModalOpen} onClose={() => setIsAgentModalOpen(false)} onSuccess={handleSuccess} />
 
-            {/* Period Tabs */}
-            <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-xl w-fit">
-                {(['mtd', 'qtd', 'ytd'] as Period[]).map(p => (
-                    <button
-                        key={p}
-                        onClick={() => setActivePeriod(p)}
-                        className={`px-3 md:px-5 py-1.5 md:py-2 rounded-lg text-[10px] md:text-xs font-bold uppercase tracking-widest transition-all ${activePeriod === p
-                            ? 'bg-white text-gray-800 shadow-sm'
-                            : 'text-gray-400 hover:text-gray-600'
-                            }`}
-                    >
-                        {p}
-                    </button>
-                ))}
-            </div>
-
+            {/* Metrics Dashboard */}
             {currentMetrics && (
-                <div className="grid grid-cols-2 gap-2 md:gap-4">
-                    {/* Revenue Collected */}
-                    <div className="bg-white rounded-xl md:rounded-2xl border border-gray-100 p-3 md:p-5">
-                        <div className="flex items-center justify-between mb-2 md:mb-3">
-                            <div className="flex items-center gap-1.5 md:gap-2 text-gray-400">
-                                <DollarSign size={12} className="md:w-[14px] md:h-[14px]" />
-                                <span className="text-[8px] md:text-[10px] font-bold uppercase tracking-widest">Revenue Collected</span>
-                            </div>
-                            <span className={`text-[10px] md:text-xs font-bold ${currentMetrics.achievement >= 100 ? 'text-green-600' :
-                                currentMetrics.achievement >= 50 ? 'text-orange-500' : 'text-red-500'
-                                }`}>
-                                {currentMetrics.achievement.toFixed(0)}%
-                            </span>
-                        </div>
-                        <p className="text-lg md:text-2xl font-black text-gray-800 tabular-nums">${currentMetrics.collections.toLocaleString()}</p>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    {/* Primary Focus Card (Revenue) */}
+                    <div className="bg-white rounded-[40px] border border-gray-100 p-8 md:p-10 shadow-sm shadow-gray-200/50 overflow-hidden relative group">
+                        {/* Abstract background elements */}
+                        <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-50/50 rounded-full blur-3xl -mr-32 -mt-32 opacity-0 group-hover:opacity-100 transition-opacity duration-1000" />
 
-                        {currentMetrics.target > 0 ? (
-                            <div className="mt-2 md:mt-3">
-                                <div className="w-full bg-gray-100 rounded-full h-1 md:h-1.5">
+                        <div className="flex items-start justify-between relative z-10">
+                            <div>
+                                <span className="text-[10px] font-black text-emerald-600 uppercase tracking-[0.2em] mb-2 block">Revenue Collected</span>
+                                <h2 className="text-4xl md:text-6xl font-black text-emerald-600 tabular-nums tracking-tighter">
+                                    {formatCurrency(currentMetrics.collections)}
+                                </h2>
+                            </div>
+                            <div className="flex flex-col items-end">
+                                <div className={`px-4 py-2 rounded-2xl font-black tabular-nums transition-all ${getAchievementColors(currentMetrics.achievement).bgMuted} ${getAchievementColors(currentMetrics.achievement).text}`}>
+                                    {currentMetrics.achievement.toFixed(1)}%
+                                </div>
+                                <span className="text-[9px] font-bold text-gray-400 mt-2 uppercase tracking-widest">Achieved</span>
+                            </div>
+                        </div>
+
+                        {currentMetrics.target > 0 && (
+                            <div className="mt-12 relative z-10">
+                                <div className="h-4 bg-gray-100/80 rounded-full overflow-hidden p-1 shadow-inner">
                                     <div
-                                        className={`h-1 md:h-1.5 rounded-full transition-all duration-700 ${currentMetrics.achievement >= 100 ? 'bg-green-500' :
-                                            currentMetrics.achievement >= 50 ? 'bg-orange-500' : 'bg-red-400'
-                                            }`}
+                                        className={`h-full rounded-full transition-all duration-[2000ms] shadow-lg ${getAchievementColors(currentMetrics.achievement).bg}`}
                                         style={{ width: `${Math.min(currentMetrics.achievement, 100)}%` }}
                                     />
                                 </div>
-                                <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between mt-2 gap-1 xl:gap-0">
-                                    <p className="text-[9px] md:text-[10px] text-gray-500 font-medium tabular-nums">
-                                        Target: <span className="font-bold text-gray-700">${currentMetrics.target.toLocaleString()}</span>
-                                    </p>
-                                    <p className="text-[9px] md:text-[10px] text-gray-400 font-medium tabular-nums">
-                                        Contractual: <span className="text-gray-500">${currentMetrics.sales.toLocaleString()}</span>
-                                    </p>
+
+                                <div className="mt-8 flex justify-between gap-4 p-6 rounded-[32px] bg-gray-50 border border-gray-100">
+                                    <div className="space-y-1">
+                                        <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest block">Goal</span>
+                                        <span className="text-lg font-black text-gray-900 tabular-nums">{formatCurrency(currentMetrics.target)}</span>
+                                    </div>
+                                    <div className="text-right space-y-1">
+                                        {currentMetrics.target > currentMetrics.collections ? (
+                                            <>
+                                                <span className="text-[9px] font-black text-orange-600 uppercase tracking-widest block">Deficit</span>
+                                                <span className="text-lg font-black text-orange-600 tabular-nums">{formatCurrency(currentMetrics.target - currentMetrics.collections)}</span>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <span className="text-[9px] font-black text-panze-purple uppercase tracking-widest block">Surplus</span>
+                                                <span className="text-lg font-black text-panze-purple tabular-nums">+{formatCurrency(currentMetrics.collections - currentMetrics.target)}</span>
+                                            </>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
-                        ) : (
-                            <p className="text-[8px] md:text-[10px] text-gray-400 mt-2 md:mt-3 font-medium tabular-nums">
-                                Contractual: ${currentMetrics.sales.toLocaleString()}
-                            </p>
                         )}
                     </div>
 
-                    {/* Projects */}
-                    <div className="bg-white rounded-xl md:rounded-2xl border border-gray-100 p-3 md:p-5">
-                        <div className="flex items-center gap-1.5 md:gap-2 text-gray-400 mb-2 md:mb-3">
-                            <Target size={12} className="md:w-[14px] md:h-[14px]" />
-                            <span className="text-[8px] md:text-[10px] font-bold uppercase tracking-widest">Deals Closed</span>
+                    {/* Secondary Metrics Card */}
+                    <div className="bg-white rounded-[40px] border border-gray-100 p-8 md:p-10 shadow-sm shadow-gray-200/50 flex flex-col justify-between group overflow-hidden relative">
+                        <div className="absolute bottom-0 left-0 w-64 h-64 bg-purple-50/50 rounded-full blur-3xl -ml-32 -mb-32 opacity-0 group-hover:opacity-100 transition-opacity duration-1000" />
+
+                        <div className="relative z-10">
+                            <span className="text-[10px] font-black text-panze-purple uppercase tracking-[0.2em] mb-2 block">Contractual Sales</span>
+                            <h2 className="text-4xl md:text-5xl font-black text-gray-900 tabular-nums tracking-tighter">
+                                {formatCurrency(currentMetrics.sales)}
+                            </h2>
+                            <p className="text-[10px] text-gray-400 font-bold uppercase mt-2 tracking-widest flex items-center gap-2">
+                                <Trophy size={14} className="opacity-40" /> {currentMetrics.projectCount} Signed Projects
+                            </p>
                         </div>
-                        <p className="text-lg md:text-2xl font-black text-gray-800 tabular-nums">{currentMetrics.projectCount}</p>
-                        <p className="text-[8px] md:text-[10px] text-gray-400 mt-2 md:mt-3 font-medium hidden sm:block">Total projects signed in period</p>
+
+                        <div className="mt-12 pt-8 border-t border-gray-100 relative z-10 flex items-center justify-between">
+                            <div className="flex items-center gap-4">
+                                <div className="w-12 h-12 bg-gray-50 rounded-2xl flex items-center justify-center text-gray-400">
+                                    <DollarSign size={20} />
+                                </div>
+                                <div>
+                                    <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest block">Avg Deal Size</span>
+                                    <span className="text-base font-black text-gray-900 tabular-nums">
+                                        {currentMetrics.projectCount > 0 ? formatCurrency(currentMetrics.sales / currentMetrics.projectCount) : '$0'}
+                                    </span>
+                                </div>
+                            </div>
+                            <ArrowUpRight size={24} className="text-gray-100 group-hover:text-panze-purple group-hover:translate-x-1 group-hover:-translate-y-1 transition-all" />
+                        </div>
                     </div>
                 </div>
             )}
 
-            {/* Team Leaderboard */}
-            <div className="bg-white rounded-xl md:rounded-2xl border border-gray-100 overflow-hidden">
-                <div className="flex items-center justify-between px-3 md:px-5 py-3 md:py-4 border-b border-gray-50">
-                    <div className="flex items-center gap-2 text-gray-800">
-                        <Users size={16} className="text-panze-purple" />
-                        <h3 className="text-xs md:text-sm font-bold">Team — {monthName} Rankings</h3>
-                    </div>
-                    <span className="text-[9px] md:text-[10px] font-bold text-gray-400 tabular-nums">{leaderboard.length} agents</span>
+            {/* Leaderboard Section */}
+            <div className="space-y-4">
+                <div className="flex items-center justify-between px-2">
+                    <h3 className="text-sm font-black text-gray-400 uppercase tracking-[0.2em]">Rank & Participation</h3>
                 </div>
 
-                {lbLoading ? (
-                    <div className="p-8 flex justify-center">
-                        <Loader2 className="w-5 h-5 text-gray-300 animate-spin" />
-                    </div>
-                ) : (
-                    <>
-                        {/* ─── Mobile Leaderboard ─── */}
-                        <div className="md:hidden divide-y divide-gray-50">
-                            {leaderboard.map((entry, idx) => (
-                                <div
-                                    key={entry.agent.id}
-                                    className={`flex items-center gap-3 px-3 py-3 ${entry.agent.id === selectedAgentId ? 'bg-purple-50/30' : ''}`}
-                                >
-                                    <span className="text-xs font-bold text-gray-400 w-5 text-center tabular-nums">
-                                        {idx === 0 && entry.mtdAchievement > 0 ? '🏆' :
-                                            idx === 1 && entry.mtdAchievement > 0 ? '🥈' :
-                                                idx === 2 && entry.mtdAchievement > 0 ? '🥉' : idx + 1}
-                                    </span>
-                                    <div className="w-7 h-7 rounded-lg bg-panze-gradient flex items-center justify-center text-white text-[10px] font-black shrink-0">
-                                        {entry.agent.full_name?.charAt(0) || '?'}
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                        <p className="text-xs font-semibold text-gray-700 truncate">{entry.agent.full_name}</p>
-                                        <p className="text-[10px] text-gray-400 tabular-nums">${entry.mtdCollected.toLocaleString()}</p>
-                                    </div>
-                                    <div className="flex items-center gap-1.5 shrink-0">
-                                        <div className="w-10 bg-gray-100 rounded-full h-1">
-                                            <div
-                                                className={`h-1 rounded-full ${entry.mtdAchievement >= 100 ? 'bg-green-500' :
-                                                    entry.mtdAchievement >= 50 ? 'bg-orange-500' : 'bg-red-400'
-                                                    }`}
-                                                style={{ width: `${Math.min(entry.mtdAchievement, 100)}%` }}
-                                            />
-                                        </div>
-                                        <span className={`text-[10px] font-bold tabular-nums ${entry.mtdAchievement >= 100 ? 'text-green-600' :
-                                            entry.mtdAchievement >= 50 ? 'text-orange-500' : 'text-red-500'
-                                            }`}>
-                                            {entry.mtdAchievement.toFixed(0)}%
-                                        </span>
-                                    </div>
-                                </div>
-                            ))}
-                            {leaderboard.length === 0 && (
-                                <div className="py-12 flex flex-col items-center justify-center text-center">
-                                    <Trophy size={32} className="text-gray-200 mb-3" />
-                                    <p className="text-xs font-bold text-gray-400">No agent rankings yet</p>
-                                </div>
-                            )}
+                <div className="bg-white rounded-[40px] border border-gray-100 shadow-sm shadow-gray-200/50 overflow-hidden hover:shadow-xl transition-all duration-700">
+                    <div className="px-8 py-6 border-b border-gray-100 bg-gray-50/10 flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <Trophy size={18} className="text-amber-500" />
+                            <span className="text-[11px] font-black text-gray-800 uppercase tracking-widest">Active Leaderboard</span>
                         </div>
+                        <span className="px-3 py-1 bg-gray-200/50 rounded-full text-[9px] font-black text-gray-500 tracking-widest">{leaderboard.length} TEAMS</span>
+                    </div>
 
-                        {/* ─── Desktop Leaderboard Table ─── */}
-                        <div className="hidden md:block overflow-x-auto">
-                            <table className="w-full text-left min-w-[600px]">
+                    {isLoading ? (
+                        <div className="p-20 flex justify-center">
+                            <Loader2 className="w-8 h-8 text-panze-purple/30 animate-spin" />
+                        </div>
+                    ) : (
+                        <div className="overflow-x-auto overflow-y-hidden">
+                            <table className="w-full text-left">
                                 <thead>
-                                    <tr className="border-b border-gray-50 bg-gray-50/30">
-                                        <th className="px-5 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-widest w-10">#</th>
-                                        <th className="px-5 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-widest">Agent</th>
-                                        <th className="px-5 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-right">Collected</th>
-                                        <th className="px-5 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-right">Target</th>
-                                        <th className="px-5 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-right w-40">Achievement</th>
+                                    <tr className="bg-gray-50/30 border-b border-gray-100/50">
+                                        <th className="px-8 py-5 text-[9px] font-black text-gray-400 uppercase tracking-widest w-20">Rank</th>
+                                        <th className="px-8 py-5 text-[9px] font-black text-gray-400 uppercase tracking-widest">Partner</th>
+                                        <th className="px-8 py-5 text-[9px] font-black text-gray-400 uppercase tracking-widest text-right">Collected</th>
+                                        <th className="px-8 py-5 text-[9px] font-black text-gray-400 uppercase tracking-widest text-center">Progress</th>
+                                        <th className="px-8 py-5 text-[9px] font-black text-gray-400 uppercase tracking-widest text-right">Action</th>
                                     </tr>
                                 </thead>
-                                <tbody className="divide-y divide-gray-50">
-                                    {leaderboard.map((entry, idx) => (
+                                <tbody className="divide-y divide-gray-50/50">
+                                    {leaderboard.map((entry: LeaderboardEntry, idx: number) => (
                                         <tr
                                             key={entry.agent.id}
-                                            className={`hover:bg-gray-50/50 transition-colors ${entry.agent.id === selectedAgentId ? 'bg-purple-50/30' : ''}`}
+                                            className="hover:bg-gray-50 transition-all group/row"
                                         >
-                                            <td className="px-5 py-3 text-xs font-bold text-gray-400 tabular-nums">
-                                                {idx === 0 && entry.mtdAchievement > 0 ? '🏆' :
-                                                    idx === 1 && entry.mtdAchievement > 0 ? '🥈' :
-                                                        idx === 2 && entry.mtdAchievement > 0 ? '🥉' : idx + 1}
+                                            <td className="px-8 py-5 text-sm font-black text-gray-300 tabular-nums">
+                                                {entry.mtdAchievement >= 100 ? '👑' : `#${idx + 1}`}
                                             </td>
-                                            <td className="px-5 py-3">
-                                                <div className="flex items-center gap-2.5">
-                                                    <div className="w-7 h-7 rounded-lg bg-panze-gradient flex items-center justify-center text-white text-[10px] font-black shrink-0">
-                                                        {entry.agent.full_name?.charAt(0) || '?'}
+                                            <td className="px-8 py-5">
+                                                <div className="flex items-center gap-4">
+                                                    <div className="w-10 h-10 rounded-2xl bg-gray-50 border border-gray-100 flex items-center justify-center font-black text-gray-400 text-xs shadow-sm group-hover/row:bg-panze-purple group-hover/row:text-white transition-all">
+                                                        {entry.agent.full_name?.charAt(0)}
                                                     </div>
-                                                    <span className="text-sm font-semibold text-gray-700">{entry.agent.full_name}</span>
+                                                    <div>
+                                                        <p className="text-sm font-black text-gray-800 tracking-tight">{entry.agent.full_name}</p>
+                                                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Sales Partner</p>
+                                                    </div>
                                                 </div>
                                             </td>
-                                            <td className="px-5 py-3 text-right text-sm font-bold text-gray-800 tabular-nums">${entry.mtdCollected.toLocaleString()}</td>
-                                            <td className="px-5 py-3 text-right text-sm text-gray-400 tabular-nums">${entry.mtdTarget.toLocaleString()}</td>
-                                            <td className="px-5 py-3 text-right">
-                                                <div className="flex items-center justify-end gap-2">
-                                                    <div className="w-16 bg-gray-100 rounded-full h-1.5">
+                                            <td className="px-8 py-5 text-right">
+                                                <span className={`text-sm font-black text-emerald-600 tabular-nums`}>
+                                                    {formatCurrency(entry.mtdCollected)}
+                                                </span>
+                                            </td>
+                                            <td className="px-8 py-5">
+                                                <div className="flex flex-col items-center gap-1.5">
+                                                    <div className="w-32 bg-gray-100 rounded-full h-1.5 overflow-hidden shadow-inner">
                                                         <div
-                                                            className={`h-1.5 rounded-full transition-all ${entry.mtdAchievement >= 100 ? 'bg-green-500' :
-                                                                entry.mtdAchievement >= 50 ? 'bg-orange-500' : 'bg-red-400'
-                                                                }`}
+                                                            className={`h-full rounded-full transition-all duration-1000 ${getAchievementColors(entry.mtdAchievement).bg}`}
                                                             style={{ width: `${Math.min(entry.mtdAchievement, 100)}%` }}
                                                         />
                                                     </div>
-                                                    <span className={`text-xs font-bold tabular-nums min-w-[32px] text-right ${entry.mtdAchievement >= 100 ? 'text-green-600' :
-                                                        entry.mtdAchievement >= 50 ? 'text-orange-500' : 'text-red-500'
-                                                        }`}>
+                                                    <span className={`text-[10px] font-black tabular-nums ${getAchievementColors(entry.mtdAchievement).text}`}>
                                                         {entry.mtdAchievement.toFixed(0)}%
                                                     </span>
                                                 </div>
                                             </td>
-                                        </tr>
-                                    ))}
-                                    {leaderboard.length === 0 && (
-                                        <tr>
-                                            <td colSpan={5} className="py-16 text-center">
-                                                <div className="flex flex-col items-center justify-center">
-                                                    <Trophy size={48} className="text-gray-200 mb-4" />
-                                                    <p className="text-sm font-bold text-gray-400">No agent rankings yet for this period</p>
-                                                </div>
+                                            <td className="px-8 py-5 text-right">
+                                                <Link
+                                                    href={`/performance/agent/${entry.agent.id}`}
+                                                    className="inline-flex items-center justify-center w-10 h-10 rounded-2xl bg-gray-50 text-gray-300 hover:bg-panze-purple hover:text-white transition-all active:scale-90"
+                                                >
+                                                    <ChevronRight size={18} />
+                                                </Link>
                                             </td>
                                         </tr>
-                                    )}
+                                    ))}
                                 </tbody>
                             </table>
                         </div>
-                    </>
-                )}
+                    )}
+                </div>
             </div>
         </div>
     );

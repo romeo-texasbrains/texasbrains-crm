@@ -16,8 +16,8 @@ interface StatCardProps {
 
 export const StatCard: React.FC<StatCardProps> = ({ title, value, trend, icon: Icon, colorClass = "bg-purple-100 text-purple-600", subtext }) => {
     return (
-        <div className="bg-white rounded-xl md:rounded-3xl p-3 md:p-6 border border-gray-100/50 hover:shadow-lg hover:shadow-purple-500/5 transition-all duration-300">
-            <div className={`panze-stat-icon ${colorClass} mb-2 md:mb-4 !w-8 !h-8 md:!w-10 md:!h-10`}>
+        <div className="bg-white rounded-2xl md:rounded-[32px] p-4 md:p-7 border border-gray-100 shadow-sm shadow-gray-200/50 hover:shadow-md hover:shadow-purple-500/10 transition-all duration-300 group">
+            <div className={`panze-stat-icon ${colorClass} mb-3 md:mb-5 !w-9 !h-9 md:!w-12 md:!h-12 rounded-xl md:rounded-2xl group-hover:scale-110 transition-transform`}>
                 <Icon size={16} className="md:w-5 md:h-5" />
             </div>
 

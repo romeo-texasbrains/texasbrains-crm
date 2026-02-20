@@ -2,6 +2,8 @@
 import React from 'react';
 import Link from 'next/link';
 import { IncomeRecord } from '@/lib/types';
+import { formatCurrency, formatDate } from '@/lib/utils';
+import { DataTable } from '@/components/ui/DataTable';
 
 interface IncomeTableProps {
     data: IncomeRecord[];
@@ -23,9 +25,7 @@ export const IncomeTable: React.FC<IncomeTableProps> = ({ data }) => {
                         <div key={item.id} className="bg-gray-50/50 rounded-xl p-3 border border-gray-100/80">
                             <div className="flex items-center justify-between mb-1.5">
                                 <span className="text-xs text-gray-400 tabular-nums">
-                                    {new Date(item.payment_date).toLocaleDateString('en-US', {
-                                        month: 'short', day: 'numeric', year: '2-digit'
-                                    })}
+                                    {formatDate(item.payment_date)}
                                 </span>
                                 {item.is_verified ? (
                                     <span className="text-[9px] font-bold text-green-700 bg-green-50 px-1.5 py-0.5 rounded">✓ Verified</span>
@@ -47,14 +47,19 @@ export const IncomeTable: React.FC<IncomeTableProps> = ({ data }) => {
                                     )}
                                     <p className="text-[11px] text-gray-400 truncate">{item.projects?.name || '—'}</p>
                                 </div>
-                                <p className="text-sm font-bold text-gray-800 tabular-nums ml-3 shrink-0">
-                                    ${Number(item.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                                </p>
+                                {formatCurrency(Number(item.amount), true)}
                             </div>
                             <div className="flex items-center gap-3 mt-1.5 text-[10px] text-gray-400">
                                 {item.payment_method && <span className="capitalize">{item.payment_method}</span>}
                                 {item.bank_accounts?.name && <span>{item.bank_accounts.name}</span>}
-                                {item.projects?.agent?.full_name && <span>{item.projects.agent.full_name}</span>}
+                                {item.projects?.agent?.full_name && (
+                                    <Link
+                                        href={`/performance/agent/${(item.projects as any).agent_id}`}
+                                        className="text-panze-purple font-bold hover:underline"
+                                    >
+                                        {item.projects.agent.full_name}
+                                    </Link>
+                                )}
                             </div>
                         </div>
                     );
@@ -67,82 +72,78 @@ export const IncomeTable: React.FC<IncomeTableProps> = ({ data }) => {
             </div>
 
             {/* ─── Desktop Table View ─── */}
-            <div className="hidden md:block overflow-x-auto">
-                <table className="w-full text-left border-collapse min-w-[700px]">
-                    <thead>
-                        <tr className="border-b border-gray-200 bg-gray-50/50">
-                            <th className="px-4 py-3 text-[10px] font-bold text-gray-500 uppercase tracking-widest whitespace-nowrap">Date</th>
-                            <th className="px-4 py-3 text-[10px] font-bold text-gray-500 uppercase tracking-widest">Client</th>
-                            <th className="px-4 py-3 text-[10px] font-bold text-gray-500 uppercase tracking-widest">Project</th>
-                            <th className="px-4 py-3 text-[10px] font-bold text-gray-500 uppercase tracking-widest text-right whitespace-nowrap">Amount</th>
-                            <th className="px-4 py-3 text-[10px] font-bold text-gray-500 uppercase tracking-widest">Method</th>
-                            <th className="px-4 py-3 text-[10px] font-bold text-gray-500 uppercase tracking-widest">Bank</th>
-                            <th className="px-4 py-3 text-[10px] font-bold text-gray-500 uppercase tracking-widest">Agent</th>
-                            <th className="px-4 py-3 text-[10px] font-bold text-gray-500 uppercase tracking-widest text-center">Status</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-50">
-                        {sorted.map((item: IncomeRecord) => {
-                            const clientName = item.projects?.client?.name;
-
-                            return (
-                                <tr key={item.id} className="hover:bg-gray-50/50 transition-colors group">
-                                    <td className="px-4 py-3 text-sm text-gray-500 tabular-nums whitespace-nowrap">
-                                        {new Date(item.payment_date).toLocaleDateString('en-US', {
-                                            month: 'short', day: 'numeric', year: '2-digit'
-                                        })}
-                                    </td>
-                                    <td className="px-4 py-3">
-                                        {clientName ? (
-                                            <Link
-                                                href={`/clients/${(item.projects as any)?.client_id || '#'}`}
-                                                className="text-sm font-semibold text-gray-800 hover:text-panze-purple transition-colors"
-                                            >
-                                                {clientName}
-                                            </Link>
-                                        ) : (
-                                            <span className="text-sm text-gray-300">—</span>
-                                        )}
-                                    </td>
-                                    <td className="px-4 py-3 text-sm text-gray-600">
-                                        {item.projects?.name || '—'}
-                                    </td>
-                                    <td className="px-4 py-3 text-right text-sm font-bold text-gray-800 tabular-nums">
-                                        ${Number(item.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                                    </td>
-                                    <td className="px-4 py-3 text-sm text-gray-500 capitalize">
-                                        {item.payment_method || '—'}
-                                    </td>
-                                    <td className="px-4 py-3 text-sm text-gray-500">
-                                        {item.bank_accounts?.name || '—'}
-                                    </td>
-                                    <td className="px-4 py-3 text-sm text-gray-500">
-                                        {item.projects?.agent?.full_name || '—'}
-                                    </td>
-                                    <td className="px-4 py-3 text-center">
-                                        {item.is_verified ? (
-                                            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-green-700 bg-green-50 px-2 py-0.5 rounded-md">
-                                                ✓ Verified
-                                            </span>
-                                        ) : (
-                                            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md">
-                                                Pending
-                                            </span>
-                                        )}
-                                    </td>
-                                </tr>
-                            );
-                        })}
-                        {sorted.length === 0 && (
-                            <tr>
-                                <td colSpan={8} className="px-4 py-16 text-center text-xs font-bold text-gray-400 uppercase tracking-widest">
-                                    No payment records
-                                </td>
-                            </tr>
-                        )}
-                    </tbody>
-                </table>
-            </div>
+            <DataTable<IncomeRecord>
+                columns={[
+                    {
+                        header: 'Date',
+                        headerClassName: 'whitespace-nowrap',
+                        className: 'text-sm text-gray-500 tabular-nums whitespace-nowrap',
+                        cell: (item) => formatDate(item.payment_date)
+                    },
+                    {
+                        header: 'Client',
+                        cell: (item) => item.projects?.client?.name ? (
+                            <Link
+                                href={`/clients/${(item.projects as any)?.client_id || '#'}`}
+                                className="text-sm font-semibold text-gray-800 hover:text-panze-purple transition-colors"
+                            >
+                                {item.projects.client.name}
+                            </Link>
+                        ) : (
+                            <span className="text-sm text-gray-300">—</span>
+                        )
+                    },
+                    {
+                        header: 'Project',
+                        className: 'text-sm text-gray-600',
+                        cell: (item) => item.projects?.name || '—'
+                    },
+                    {
+                        header: 'Amount',
+                        headerClassName: 'text-right whitespace-nowrap',
+                        className: 'text-right text-sm font-bold text-gray-800 tabular-nums',
+                        cell: (item) => formatCurrency(Number(item.amount), true)
+                    },
+                    {
+                        header: 'Method',
+                        className: 'text-sm text-gray-500 capitalize',
+                        cell: (item) => item.payment_method || '—'
+                    },
+                    {
+                        header: 'Bank',
+                        className: 'text-sm text-gray-500',
+                        cell: (item) => item.bank_accounts?.name || '—'
+                    },
+                    {
+                        header: 'Agent',
+                        className: 'text-sm text-gray-500',
+                        cell: (item) => item.projects?.agent?.full_name ? (
+                            <Link
+                                href={`/performance/agent/${(item.projects as any).agent_id}`}
+                                className="hover:text-panze-purple hover:underline transition-colors"
+                            >
+                                {item.projects.agent.full_name}
+                            </Link>
+                        ) : '—'
+                    },
+                    {
+                        header: 'Status',
+                        headerClassName: 'text-center',
+                        className: 'text-center',
+                        cell: (item) => item.is_verified ? (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-green-700 bg-green-50 px-2 py-0.5 rounded-md">
+                                ✓ Verified
+                            </span>
+                        ) : (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md">
+                                Pending
+                            </span>
+                        )
+                    }
+                ]}
+                data={sorted}
+                emptyMessage="No payment records"
+            />
         </>
     );
 };

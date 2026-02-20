@@ -6,28 +6,19 @@ import { getClients } from '../api';
 import { Client } from '@/lib/types';
 import { UserPlus, Mail, Phone, Calendar, Loader2, Building2, Search, ChevronRight, User, DollarSign } from 'lucide-react';
 import { AddClientModal } from './AddClientModal';
+import { formatCurrency } from '@/lib/utils';
+
+import useSWR from 'swr';
 
 export const ClientsList = () => {
-    const [clients, setClients] = useState<Client[]>([]);
-    const [loading, setLoading] = useState(true);
+    const { data: clientsData, isLoading, mutate } = useSWR('clients-list', getClients, {
+        revalidateOnFocus: false,
+        revalidateIfStale: true,
+    });
+    const clients = clientsData || [];
+
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
-
-    async function load() {
-        setLoading(true);
-        try {
-            const data = await getClients();
-            setClients(data);
-        } catch (err) {
-            console.error(err);
-        } finally {
-            setLoading(false);
-        }
-    }
-
-    useEffect(() => {
-        load();
-    }, []);
 
     const filteredClients = clients.filter(c => {
         const q = searchQuery.toLowerCase();
@@ -40,7 +31,7 @@ export const ClientsList = () => {
         );
     });
 
-    if (loading && clients.length === 0) {
+    if (isLoading && clients.length === 0) {
         return (
             <div className="h-[400px] flex flex-col items-center justify-center gap-4">
                 <Loader2 className="w-8 h-8 text-panze-purple animate-spin" />
@@ -85,7 +76,7 @@ export const ClientsList = () => {
             <AddClientModal
                 isOpen={isModalOpen}
                 onClose={() => setIsModalOpen(false)}
-                onSuccess={load}
+                onSuccess={() => mutate()}
             />
 
             {/* Mobile Card View */}
@@ -97,17 +88,28 @@ export const ClientsList = () => {
                         className="block bg-white rounded-xl border border-gray-100 p-4 hover:border-panze-purple/30 transition-all active:scale-[0.98]"
                     >
                         <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
+                            <div className="flex items-start gap-3">
                                 <div className="w-10 h-10 rounded-xl bg-purple-50 flex items-center justify-center text-panze-purple font-black text-sm shrink-0">
-                                    {client.name.charAt(0)}
+                                    {(client as any).name.charAt(0)}
                                 </div>
-                                <div>
-                                    <p className="text-sm font-bold text-gray-800">{client.name}</p>
-                                    {client.company && (
-                                        <p className="text-[10px] text-gray-400 flex items-center gap-1">
-                                            <Building2 size={10} /> {client.company}
-                                        </p>
-                                    )}
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-bold text-gray-800 truncate">{client.name}</p>
+                                    <div className="flex items-center gap-2 mt-0.5">
+                                        {(client as any).assigned_agent && (
+                                            <Link
+                                                href={`/performance/agent/${(client as any).assigned_agent.id}`}
+                                                className="text-[9px] font-black text-panze-purple uppercase tracking-widest bg-purple-50 px-1.5 py-0.5 rounded-md hover:bg-panze-purple hover:text-white transition-colors"
+                                                onClick={(e) => e.stopPropagation()}
+                                            >
+                                                {(client as any).assigned_agent.full_name}
+                                            </Link>
+                                        )}
+                                        {(client as any).company && (
+                                            <p className="text-[10px] text-gray-400 flex items-center gap-1 truncate">
+                                                <Building2 size={10} /> {(client as any).company}
+                                            </p>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
                             <div className="flex items-center gap-2">
@@ -121,16 +123,15 @@ export const ClientsList = () => {
                             </div>
                         </div>
 
-                        {/* Mobile Financial Metrics */}
                         <div className="mt-3 grid grid-cols-2 gap-2 border-t border-gray-50 pt-3">
                             <div>
                                 <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">CLTV (Life)</p>
-                                <p className="text-xs font-bold text-gray-800">${(client.cltv || 0).toLocaleString()}</p>
+                                <p className="text-xs font-bold text-gray-800">{formatCurrency(client.cltv || 0)}</p>
                             </div>
                             <div>
                                 <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Remaining</p>
                                 <p className={`text-xs font-bold ${(client.remaining_balance || 0) > 0 ? 'text-orange-600' : 'text-gray-400'}`}>
-                                    ${(client.remaining_balance || 0).toLocaleString()}
+                                    {formatCurrency(client.remaining_balance || 0)}
                                 </p>
                             </div>
                         </div>
@@ -168,6 +169,7 @@ export const ClientsList = () => {
                                 <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">Client</th>
                                 <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">Contact</th>
                                 <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">Industry</th>
+                                <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">Assigned Agent</th>
                                 <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">CLTV Value</th>
                                 <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">Remaining</th>
                                 <th className="px-10 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Status</th>
@@ -212,15 +214,32 @@ export const ClientsList = () => {
                                         {client.industry || '—'}
                                     </td>
                                     <td className="px-8 py-5">
+                                        {(client as any).assigned_agent ? (
+                                            <Link
+                                                href={`/performance/agent/${(client as any).assigned_agent.id}`}
+                                                className="flex items-center gap-2 group/agent"
+                                            >
+                                                <div className="w-7 h-7 rounded-lg bg-gray-50 flex items-center justify-center text-gray-400 group-hover/agent:bg-purple-50 group-hover/agent:text-panze-purple transition-colors">
+                                                    <User size={12} />
+                                                </div>
+                                                <span className="text-xs font-black text-gray-700 group-hover/agent:text-panze-purple transition-colors">
+                                                    {(client as any).assigned_agent.full_name?.toUpperCase()}
+                                                </span>
+                                            </Link>
+                                        ) : (
+                                            <span className="text-[10px] font-black text-gray-300 uppercase tracking-[0.1em]">Unassigned</span>
+                                        )}
+                                    </td>
+                                    <td className="px-8 py-5">
                                         <div className="flex flex-col">
-                                            <span className="text-sm font-bold text-gray-800">${(client.cltv || 0).toLocaleString()}</span>
+                                            <span className="text-sm font-bold text-gray-800">{formatCurrency(client.cltv || 0)}</span>
                                             <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Life Value</span>
                                         </div>
                                     </td>
                                     <td className="px-8 py-5">
                                         <div className="flex flex-col">
                                             <span className={`text-sm font-bold ${(client.remaining_balance || 0) > 0 ? 'text-orange-600' : 'text-gray-400'}`}>
-                                                ${(client.remaining_balance || 0).toLocaleString()}
+                                                {formatCurrency(client.remaining_balance || 0)}
                                             </span>
                                             <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Outstanding</span>
                                         </div>

@@ -9,26 +9,17 @@ import { EntryModal } from '@/components/ui/EntryModal';
 import { Plus, Filter, Loader2, Wallet, Layers } from 'lucide-react';
 import { NewEntryModal } from '@/features/dashboard/components/NewEntryModal';
 
+import useSWR from 'swr';
+
 export default function IncomeDashboard() {
-    const [data, setData] = useState<IncomeRecord[]>([]);
-    const [loading, setLoading] = useState(true);
+    const { data: records, isLoading, mutate } = useSWR('income-records', getIncomeRecords, {
+        revalidateOnFocus: false,
+        revalidateIfStale: true,
+    });
+    const data = records || [];
+
     const [modalType, setModalType] = useState<'account' | 'category' | null>(null);
     const [isEntryModalOpen, setIsEntryModalOpen] = useState(false);
-
-    const loadData = async () => {
-        try {
-            const records = await getIncomeRecords();
-            setData((records as IncomeRecord[]) || []);
-        } catch (err) {
-            console.error(err);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    useEffect(() => {
-        loadData();
-    }, []);
 
     return (
         <div className="space-y-5 md:space-y-8 animate-in fade-in duration-700">
@@ -89,7 +80,7 @@ export default function IncomeDashboard() {
                 </div>
 
                 <div className="p-1">
-                    {loading ? (
+                    {isLoading ? (
                         <div className="h-96 flex flex-col items-center justify-center gap-4">
                             <Loader2 className="w-8 h-8 text-panze-purple animate-spin" />
                             <p className="text-[11px] text-gray-400 font-bold uppercase tracking-[0.2em]">Synchronizing Records</p>
@@ -106,7 +97,7 @@ export default function IncomeDashboard() {
                 onClose={() => setModalType(null)}
                 onSave={async (name: string) => {
                     await createBankAccount(name);
-                    await loadData();
+                    await mutate();
                 }}
             />
 
@@ -116,14 +107,14 @@ export default function IncomeDashboard() {
                 onClose={() => setModalType(null)}
                 onSave={async (name: string) => {
                     await createIncomeCategory(name);
-                    await loadData();
+                    await mutate();
                 }}
             />
 
             <NewEntryModal
                 isOpen={isEntryModalOpen}
                 onClose={() => setIsEntryModalOpen(false)}
-                onSuccess={loadData}
+                onSuccess={() => mutate()}
             />
         </div>
     );

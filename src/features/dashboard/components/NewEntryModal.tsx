@@ -14,6 +14,7 @@ import {
     Loader2, Users, User, Briefcase, DollarSign, Calendar,
     FileText, CheckCircle, ArrowRight, Sparkles
 } from 'lucide-react';
+import { formatCurrency } from '@/lib/utils';
 
 interface NewEntryModalProps {
     isOpen: boolean;
@@ -108,7 +109,7 @@ export const NewEntryModal: React.FC<NewEntryModalProps> = ({ isOpen, onClose, o
     const projectOptions: ComboBoxOption[] = clientProjects.map(p => ({
         value: p.project_id,
         label: p.project_name,
-        sublabel: `$${p.paid_amount.toLocaleString()} / $${Number(p.total_amount).toLocaleString()} paid`,
+        sublabel: `${formatCurrency(p.paid_amount)} / ${formatCurrency(Number(p.total_amount))} paid`,
     }));
 
     const bankOptions: ComboBoxOption[] = bankAccounts.map(b => ({
@@ -386,7 +387,7 @@ export const NewEntryModal: React.FC<NewEntryModalProps> = ({ isOpen, onClose, o
                                         <div>
                                             <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Remaining After Payment</p>
                                             <p className={`text-lg font-black tabular-nums ${remaining > 0 ? 'text-orange-600' : 'text-green-600'}`}>
-                                                ${remaining.toLocaleString()}
+                                                {formatCurrency(remaining)}
                                             </p>
                                         </div>
                                     </div>

@@ -78,6 +78,7 @@ export type ProjectLedger = {
   paid_amount: number;
   remaining_amount: number;
   agent_id: string | null;
+  agent_name?: string | null;
   status: string;
   created_at: string;
 };

@@ -7,6 +7,10 @@ export async function getClients() {
         .from('clients')
         .select(`
             *,
+            assigned_agent:profiles!assigned_agent_id (
+                id,
+                full_name
+            ),
             projects:projects (
                 total_amount,
                 payments:payments (

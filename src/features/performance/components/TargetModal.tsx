@@ -74,7 +74,7 @@ export const TargetModal: React.FC<TargetModalProps> = ({ isOpen, onClose, onSuc
                                 <select
                                     className="w-full pl-12 pr-4 py-4 rounded-2xl border border-gray-100 bg-gray-50/50 outline-none focus:border-panze-purple focus:bg-white transition-all font-bold text-gray-800 appearance-none"
                                     value={formData.period_type}
-                                    onChange={e => setFormData({ ...formData, period_type: e.target.value as any })}
+                                    onChange={e => setFormData({ ...formData, period_type: e.target.value as 'monthly' | 'quarterly' | 'yearly' })}
                                 >
                                     <option value="weekly">Weekly</option>
                                     <option value="monthly">Monthly</option>

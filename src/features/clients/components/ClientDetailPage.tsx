@@ -26,6 +26,9 @@ import {
 } from 'lucide-react';
 import { AddProjectModal } from '@/features/ledger/components/AddProjectModal';
 import { AddPaymentModal } from '@/features/income/components/AddPaymentModal';
+import { formatCurrency, formatDate } from '@/lib/utils';
+import { DataTable } from '@/components/ui/DataTable';
+import useSWR from 'swr';
 
 type Tab = 'overview' | 'projects' | 'payments';
 
@@ -34,12 +37,6 @@ interface ClientDetailPageProps {
 }
 
 export const ClientDetailPage: React.FC<ClientDetailPageProps> = ({ clientId }) => {
-    const [client, setClient] = useState<ClientWithAgent | null>(null);
-    const [projects, setProjects] = useState<ClientProject[]>([]);
-    const [payments, setPayments] = useState<ClientPayment[]>([]);
-    const [summary, setSummary] = useState<ClientSummaryStats | null>(null);
-    const [agents, setAgents] = useState<Profile[]>([]);
-    const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState<Tab>('overview');
     const [isEditing, setIsEditing] = useState(false);
     const [editForm, setEditForm] = useState<Partial<ClientWithAgent>>({});
@@ -47,30 +44,27 @@ export const ClientDetailPage: React.FC<ClientDetailPageProps> = ({ clientId }) 
     const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
     const [saving, setSaving] = useState(false);
 
-    const loadData = useCallback(async () => {
-        try {
-            const [c, p, pay, s, a] = await Promise.all([
-                getClientDetail(clientId),
-                getClientProjects(clientId),
-                getClientPayments(clientId),
-                getClientSummary(clientId),
-                getAgents(),
-            ]);
-            setClient(c);
-            setProjects(p);
-            setPayments(pay);
-            setSummary(s);
-            setAgents(a);
-        } catch (err) {
-            console.error('Failed to load client detail:', err);
-        } finally {
-            setLoading(false);
-        }
-    }, [clientId]);
+    const fetcher = async () => {
+        const [c, p, pay, s, a] = await Promise.all([
+            getClientDetail(clientId),
+            getClientProjects(clientId),
+            getClientPayments(clientId),
+            getClientSummary(clientId),
+            getAgents(),
+        ]);
+        return { client: c, projects: p, payments: pay, summary: s, agents: a };
+    };
 
-    useEffect(() => {
-        loadData();
-    }, [loadData]);
+    const { data, isLoading, mutate } = useSWR(`client-${clientId}`, fetcher, {
+        revalidateOnFocus: false,
+        revalidateIfStale: true,
+    });
+
+    const client = data?.client || null;
+    const projects = data?.projects || [];
+    const payments = data?.payments || [];
+    const summary = data?.summary || null;
+    const agents = data?.agents || [];
 
     const handleSave = async () => {
         if (!client) return;
@@ -88,7 +82,7 @@ export const ClientDetailPage: React.FC<ClientDetailPageProps> = ({ clientId }) 
                 notes: editForm.notes ?? client.notes,
                 status: editForm.status ?? client.status,
             });
-            await loadData();
+            await mutate();
             setIsEditing(false);
         } catch (err) {
             console.error('Failed to update client', err);
@@ -104,7 +98,7 @@ export const ClientDetailPage: React.FC<ClientDetailPageProps> = ({ clientId }) 
         }
     };
 
-    if (loading) {
+    if (isLoading) {
         return (
             <div className="h-[600px] flex flex-col items-center justify-center gap-4">
                 <Loader2 className="w-10 h-10 text-panze-purple animate-spin" />
@@ -203,12 +197,17 @@ export const ClientDetailPage: React.FC<ClientDetailPageProps> = ({ clientId }) 
                                         </div>
                                     )}
                                     {client.assigned_agent && (
-                                        <div className="flex items-center gap-1.5 text-xs text-panze-purple font-bold">
-                                            <User size={12} /> {client.assigned_agent.full_name}
+                                        <div className="flex items-center gap-1.5 text-xs font-bold mt-1">
+                                            <Link
+                                                href={`/performance/agent/${client.assigned_agent_id}`}
+                                                className="flex items-center gap-1.5 text-panze-purple hover:underline transition-all"
+                                            >
+                                                <User size={12} /> {client.assigned_agent.full_name}
+                                            </Link>
                                         </div>
                                     )}
                                     <div className="flex items-center gap-1.5 text-xs text-gray-400 font-bold">
-                                        <Calendar size={12} /> Since {new Date(client.created_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+                                        <Calendar size={12} /> Since {formatDate(client.created_at, 'month-year')}
                                     </div>
                                 </div>
                             </div>
@@ -337,9 +336,9 @@ export const ClientDetailPage: React.FC<ClientDetailPageProps> = ({ clientId }) 
                             {[
                                 { label: 'Total Projects', value: summary.total_projects, icon: Briefcase, color: 'bg-blue-50 text-blue-600' },
                                 { label: 'Active Projects', value: summary.active_projects, icon: CheckCircle, color: 'bg-green-50 text-green-600' },
-                                { label: 'Contract Value', value: `$${summary.total_contract_value.toLocaleString()}`, icon: DollarSign, color: 'bg-purple-50 text-panze-purple' },
-                                { label: 'Total Paid', value: `$${summary.total_paid.toLocaleString()}`, icon: Check, color: 'bg-emerald-50 text-emerald-600' },
-                                { label: 'Outstanding', value: `$${summary.total_outstanding.toLocaleString()}`, icon: Clock, color: 'bg-orange-50 text-orange-600' },
+                                { label: 'Contract Value', value: formatCurrency(summary.total_contract_value), icon: DollarSign, color: 'bg-purple-50 text-panze-purple' },
+                                { label: 'Total Paid', value: formatCurrency(summary.total_paid), icon: Check, color: 'bg-emerald-50 text-emerald-600' },
+                                { label: 'Outstanding', value: formatCurrency(summary.total_outstanding), icon: Clock, color: 'bg-orange-50 text-orange-600' },
                                 { label: 'Payments', value: summary.total_payments, icon: CreditCard, color: 'bg-indigo-50 text-indigo-600' },
                             ].map(stat => (
                                 <div key={stat.label} className="bg-white rounded-xl md:rounded-2xl border border-gray-100 p-3 md:p-5 hover:shadow-lg hover:shadow-purple-500/5 transition-all duration-300">
@@ -379,7 +378,7 @@ export const ClientDetailPage: React.FC<ClientDetailPageProps> = ({ clientId }) 
                                             <p className="text-[10px] font-bold text-gray-400">{p.agent?.full_name || 'Unassigned'}</p>
                                         </div>
                                         <div className="text-right">
-                                            <p className="text-sm font-black text-gray-800">${Number(p.total_amount).toLocaleString()}</p>
+                                            <p className="text-sm font-black text-gray-800">{formatCurrency(Number(p.total_amount))}</p>
                                             <span className={`panze-badge text-[10px] ${projectStatusColors[p.status]}`}>
                                                 {p.status}
                                             </span>
@@ -404,12 +403,12 @@ export const ClientDetailPage: React.FC<ClientDetailPageProps> = ({ clientId }) 
                                 {payments.slice(0, 3).map(p => (
                                     <div key={p.id} className="flex items-center justify-between py-3 border-b border-gray-50 last:border-0">
                                         <div>
-                                            <p className="text-sm font-bold text-gray-700">${Number(p.amount).toLocaleString()}</p>
+                                            <p className="text-sm font-bold text-gray-700">{formatCurrency(Number(p.amount))}</p>
                                             <p className="text-[10px] font-bold text-gray-400">{p.project_name}</p>
                                         </div>
                                         <div className="text-right">
                                             <p className="text-xs font-bold text-gray-500">
-                                                {new Date(p.payment_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                                                {formatDate(p.payment_date)}
                                             </p>
                                             <span className={`panze-badge text-[10px] ${p.is_verified ? 'panze-badge-success' : 'panze-badge-warning'}`}>
                                                 {p.is_verified ? 'Verified' : 'Pending'}
@@ -447,9 +446,9 @@ export const ClientDetailPage: React.FC<ClientDetailPageProps> = ({ clientId }) 
                                             <span className="text-[10px] font-bold text-gray-400 tabular-nums">{paidPercent.toFixed(0)}%</span>
                                         </div>
                                         <div className="grid grid-cols-3 gap-2 text-center">
-                                            <div><p className="text-[8px] font-bold text-gray-400 uppercase">Contract</p><p className="text-xs font-bold text-gray-800 tabular-nums">${Number(p.total_amount).toLocaleString()}</p></div>
-                                            <div><p className="text-[8px] font-bold text-gray-400 uppercase">Paid</p><p className="text-xs font-bold text-green-600 tabular-nums">${p.paid_amount.toLocaleString()}</p></div>
-                                            <div><p className="text-[8px] font-bold text-gray-400 uppercase">Due</p><p className="text-xs font-bold text-orange-600 tabular-nums">${p.remaining_amount.toLocaleString()}</p></div>
+                                            <div><p className="text-[8px] font-bold text-gray-400 uppercase">Contract</p><p className="text-xs font-bold text-gray-800 tabular-nums">{formatCurrency(Number(p.total_amount))}</p></div>
+                                            <div><p className="text-[8px] font-bold text-gray-400 uppercase">Paid</p><p className="text-xs font-bold text-green-600 tabular-nums">{formatCurrency(p.paid_amount)}</p></div>
+                                            <div><p className="text-[8px] font-bold text-gray-400 uppercase">Due</p><p className="text-xs font-bold text-orange-600 tabular-nums">{formatCurrency(p.remaining_amount)}</p></div>
                                         </div>
                                     </div>
                                 );
@@ -459,36 +458,39 @@ export const ClientDetailPage: React.FC<ClientDetailPageProps> = ({ clientId }) 
                             )}
                         </div>
                         {/* Desktop project table */}
-                        <div className="hidden md:block overflow-x-auto">
-                            <table className="w-full min-w-[700px]">
-                                <thead>
-                                    <tr className="border-b border-gray-50 bg-gray-50/30">
-                                        <th className="px-6 py-4 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest">Project</th>
-                                        <th className="px-6 py-4 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest">Agent</th>
-                                        <th className="px-6 py-4 text-right text-[10px] font-black text-gray-400 uppercase tracking-widest">Contract</th>
-                                        <th className="px-6 py-4 text-right text-[10px] font-black text-gray-400 uppercase tracking-widest">Paid</th>
-                                        <th className="px-6 py-4 text-right text-[10px] font-black text-gray-400 uppercase tracking-widest">Remaining</th>
-                                        <th className="px-6 py-4 text-right text-[10px] font-black text-gray-400 uppercase tracking-widest">Status</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-gray-50">
-                                    {projects.map(p => {
+                        <DataTable<ClientProject>
+                            columns={[
+                                {
+                                    header: 'Project',
+                                    headerClassName: 'text-left',
+                                    cell: (p) => (
+                                        <>
+                                            <p className="text-sm font-bold text-gray-700">{p.name}</p>
+                                            <p className="text-[10px] text-gray-400 font-semibold">{formatDate(p.start_date)}</p>
+                                        </>
+                                    )
+                                },
+                                { header: 'Agent', headerClassName: 'text-left', className: 'text-sm text-gray-500 font-medium', cell: (p) => p.agent?.full_name || '—' },
+                                { header: 'Contract', headerClassName: 'text-right', className: 'text-right text-sm font-black text-gray-800 tabular-nums', cell: (p) => formatCurrency(Number(p.total_amount)) },
+                                {
+                                    header: 'Paid', headerClassName: 'text-right', className: 'text-right', cell: (p) => {
                                         const paidPercent = Number(p.total_amount) > 0 ? (p.paid_amount / Number(p.total_amount)) * 100 : 0;
                                         return (
-                                            <tr key={p.id} className="group hover:bg-gray-50/50 transition-all">
-                                                <td className="px-6 py-4"><p className="text-sm font-bold text-gray-700">{p.name}</p><p className="text-[10px] text-gray-400 font-semibold">{new Date(p.start_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</p></td>
-                                                <td className="px-6 py-4 text-sm text-gray-500 font-medium">{p.agent?.full_name || '—'}</td>
-                                                <td className="px-6 py-4 text-right text-sm font-black text-gray-800">${Number(p.total_amount).toLocaleString()}</td>
-                                                <td className="px-6 py-4 text-right"><p className="text-sm font-bold text-green-600">${p.paid_amount.toLocaleString()}</p><div className="w-full bg-gray-100 rounded-full h-1 mt-1.5"><div className="bg-green-500 h-1 rounded-full transition-all" style={{ width: `${Math.min(paidPercent, 100)}%` }} /></div></td>
-                                                <td className="px-6 py-4 text-right text-sm font-bold text-orange-600">${p.remaining_amount.toLocaleString()}</td>
-                                                <td className="px-6 py-4 text-right"><span className={`panze-badge ${projectStatusColors[p.status]}`}>{p.status}</span></td>
-                                            </tr>
+                                            <>
+                                                <p className="text-sm font-bold text-green-600 tabular-nums">{formatCurrency(p.paid_amount)}</p>
+                                                <div className="w-full bg-gray-100 rounded-full h-1 mt-1.5">
+                                                    <div className="bg-green-500 h-1 rounded-full transition-all" style={{ width: `${Math.min(paidPercent, 100)}%` }} />
+                                                </div>
+                                            </>
                                         );
-                                    })}
-                                    {projects.length === 0 && (<tr><td colSpan={6} className="px-6 py-16 text-center text-gray-400 text-xs font-bold uppercase tracking-widest">No projects found for this client</td></tr>)}
-                                </tbody>
-                            </table>
-                        </div>
+                                    }
+                                },
+                                { header: 'Remaining', headerClassName: 'text-right', className: 'text-right text-sm font-bold text-orange-600 tabular-nums', cell: (p) => formatCurrency(p.remaining_amount) },
+                                { header: 'Status', headerClassName: 'text-right', className: 'text-right', cell: (p) => <span className={`panze-badge ${projectStatusColors[p.status]}`}>{p.status}</span> }
+                            ]}
+                            data={projects}
+                            emptyMessage="No projects found for this client"
+                        />
                     </div>
                 )}
 
@@ -499,12 +501,12 @@ export const ClientDetailPage: React.FC<ClientDetailPageProps> = ({ clientId }) 
                             {payments.map(p => (
                                 <div key={p.id} className="p-3">
                                     <div className="flex items-center justify-between mb-1">
-                                        <span className="text-xs text-gray-400 tabular-nums">{new Date(p.payment_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' })}</span>
+                                        <span className="text-xs text-gray-400 tabular-nums">{formatDate(p.payment_date)}</span>
                                         <span className={`panze-badge text-[9px] ${p.is_verified ? 'panze-badge-success' : 'panze-badge-warning'}`}>{p.is_verified ? '✓ Verified' : 'Pending'}</span>
                                     </div>
                                     <div className="flex items-center justify-between">
                                         <p className="text-xs text-gray-500 truncate flex-1">{p.project_name}</p>
-                                        <p className="text-sm font-bold text-gray-800 tabular-nums ml-3">${Number(p.amount).toLocaleString()}</p>
+                                        <p className="text-sm font-bold text-gray-800 tabular-nums ml-3">{formatCurrency(Number(p.amount))}</p>
                                     </div>
                                     {(p.payment_method || p.note) && (
                                         <div className="flex items-center gap-2 mt-1 text-[10px] text-gray-400">
@@ -519,33 +521,18 @@ export const ClientDetailPage: React.FC<ClientDetailPageProps> = ({ clientId }) 
                             )}
                         </div>
                         {/* Desktop payment table */}
-                        <div className="hidden md:block overflow-x-auto">
-                            <table className="w-full min-w-[700px]">
-                                <thead>
-                                    <tr className="border-b border-gray-50 bg-gray-50/30">
-                                        <th className="px-6 py-4 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest">Date</th>
-                                        <th className="px-6 py-4 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest">Project</th>
-                                        <th className="px-6 py-4 text-right text-[10px] font-black text-gray-400 uppercase tracking-widest">Amount</th>
-                                        <th className="px-6 py-4 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest">Method</th>
-                                        <th className="px-6 py-4 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest">Note</th>
-                                        <th className="px-6 py-4 text-right text-[10px] font-black text-gray-400 uppercase tracking-widest">Status</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-gray-50">
-                                    {payments.map(p => (
-                                        <tr key={p.id} className="group hover:bg-gray-50/50 transition-all">
-                                            <td className="px-6 py-4 text-sm font-bold text-gray-600">{new Date(p.payment_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</td>
-                                            <td className="px-6 py-4 text-sm font-medium text-gray-700">{p.project_name}</td>
-                                            <td className="px-6 py-4 text-right text-sm font-black text-gray-800">${Number(p.amount).toLocaleString()}</td>
-                                            <td className="px-6 py-4 text-sm text-gray-500 font-medium">{p.payment_method || '—'}</td>
-                                            <td className="px-6 py-4 text-sm text-gray-400 truncate max-w-[200px]">{p.note || '—'}</td>
-                                            <td className="px-6 py-4 text-right"><span className={`panze-badge ${p.is_verified ? 'panze-badge-success' : 'panze-badge-warning'}`}>{p.is_verified ? 'Verified' : 'Pending'}</span></td>
-                                        </tr>
-                                    ))}
-                                    {payments.length === 0 && (<tr><td colSpan={6} className="px-6 py-16 text-center text-gray-400 text-xs font-bold uppercase tracking-widest">No payments found for this client</td></tr>)}
-                                </tbody>
-                            </table>
-                        </div>
+                        <DataTable<ClientPayment>
+                            columns={[
+                                { header: 'Date', headerClassName: 'text-left', className: 'text-sm font-bold text-gray-600 tabular-nums', cell: (p) => formatDate(p.payment_date) },
+                                { header: 'Project', headerClassName: 'text-left', className: 'text-sm font-medium text-gray-700', cell: (p) => p.project_name },
+                                { header: 'Amount', headerClassName: 'text-right', className: 'text-right text-sm font-black text-gray-800 tabular-nums', cell: (p) => formatCurrency(Number(p.amount)) },
+                                { header: 'Method', headerClassName: 'text-left', className: 'text-sm text-gray-500 font-medium capitalize', cell: (p) => p.payment_method || '—' },
+                                { header: 'Note', headerClassName: 'text-left', className: 'text-sm text-gray-400 truncate max-w-[200px]', cell: (p) => p.note || '—' },
+                                { header: 'Status', headerClassName: 'text-right', className: 'text-right', cell: (p) => <span className={`panze-badge ${p.is_verified ? 'panze-badge-success' : 'panze-badge-warning'}`}>{p.is_verified ? 'Verified' : 'Pending'}</span> }
+                            ]}
+                            data={payments}
+                            emptyMessage="No payments found for this client"
+                        />
                     </div>
                 )}
             </div>
@@ -554,13 +541,13 @@ export const ClientDetailPage: React.FC<ClientDetailPageProps> = ({ clientId }) 
             <AddProjectModal
                 isOpen={isProjectModalOpen}
                 onClose={() => setIsProjectModalOpen(false)}
-                onSuccess={loadData}
+                onSuccess={() => mutate()}
                 preselectedClientId={clientId}
             />
             <AddPaymentModal
                 isOpen={isPaymentModalOpen}
                 onClose={() => setIsPaymentModalOpen(false)}
-                onSuccess={loadData}
+                onSuccess={() => mutate()}
                 preselectedClientId={clientId}
             />
         </div>

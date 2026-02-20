@@ -27,68 +27,6 @@ export function getDateRange(filter: DateFilter): { start: string, end: string }
     return null;
 }
 
-export async function getDashboardStats(filter: DateFilter = 'all') {
-    const range = getDateRange(filter);
-
-    let paymentsQuery = supabase.from('payments').select('amount, payment_date');
-    let clientsQuery = supabase.from('clients').select('created_at', { count: 'exact' });
-    let projectsQuery = supabase.from('projects').select('created_at', { count: 'exact' }).eq('status', 'active');
-
-    if (range) {
-        paymentsQuery = paymentsQuery.gte('payment_date', range.start).lte('payment_date', range.end);
-        clientsQuery = clientsQuery.gte('created_at', range.start).lte('created_at', range.end);
-        projectsQuery = projectsQuery.gte('created_at', range.start).lte('created_at', range.end);
-    }
-
-    const { data: periodPayments, error: pError } = await paymentsQuery;
-    const { count: periodProjects, error: prError } = await projectsQuery;
-    const { count: periodClients, error: cError } = await clientsQuery;
-
-    // For outstanding balance and MTD, we still need some all-time or specific data
-    const { data: allProjects } = await supabase.from('projects').select('total_amount').eq('status', 'active');
-    const { data: allPayments } = await supabase.from('payments').select('amount, payment_date');
-    const { count: totalActiveClients } = await supabase.from('clients').select('*', { count: 'exact', head: true }).eq('status', 'active');
-
-    if (pError || prError || cError) {
-        console.error('Dashboard Stats Error:', { pError, prError, cError });
-        return {
-            periodRevenue: 0,
-            periodProjects: 0,
-            periodClients: 0,
-            totalActiveClients: 0,
-            outstandingBalance: 0,
-            mtdRevenue: 0,
-            collectionRate: 0,
-        };
-    }
-
-    const periodRevenue = (periodPayments || []).reduce((sum, p) => sum + Number(p.amount), 0);
-
-    // Outstanding balance (All Time)
-    const totalAllTimeRevenue = (allPayments || []).reduce((sum, p) => sum + Number(p.amount), 0);
-    const totalProjectValue = (allProjects || []).reduce((sum, p) => sum + Number(p.total_amount), 0);
-    const outstandingBalance = totalProjectValue - totalAllTimeRevenue;
-    const collectionRate = totalProjectValue > 0 ? (totalAllTimeRevenue / totalProjectValue) * 100 : 0;
-
-    // MTD Revenue
-    // MTD Revenue
-    const now = new Date();
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
-    const mtdRevenue = (allPayments || [])
-        .filter((p: any) => p.payment_date && p.payment_date >= startOfMonth)
-        .reduce((sum: number, p: any) => sum + Number(p.amount), 0);
-
-    return {
-        periodRevenue,
-        periodProjects: periodProjects || 0,
-        periodClients: periodClients || 0,
-        totalActiveClients: totalActiveClients || 0,
-        outstandingBalance,
-        mtdRevenue,
-        collectionRate,
-    };
-}
-
 export async function getRevenueChartData() {
     const { data, error } = await supabase
         .from('payments')
@@ -113,43 +51,92 @@ export async function getRevenueChartData() {
     return chartData;
 }
 
-export async function getLatestRegistrations(filter: DateFilter = 'all') {
-    const range = getDateRange(filter);
-    let query = supabase
-        .from('clients')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(5);
+export async function getComprehensiveDashboardData() {
+    const now = new Date();
 
-    if (range) {
-        query = query.gte('created_at', range.start).lte('created_at', range.end);
+    // 1. Fetch ALL base data (base lists of projects, payments, clients for full year/all time)
+    // We limit registrations and transactions to reasonable numbers for dashboard visibility
+    const [
+        { data: allPayments, error: pError },
+        { data: allProjects, error: prError },
+        { data: allClients, error: cError },
+        { data: registrations, error: regError },
+        { data: transactions, error: traError }
+    ] = await Promise.all([
+        supabase.from('payments').select('amount, payment_date'),
+        supabase.from('projects').select('total_amount, created_at').eq('status', 'active'),
+        supabase.from('clients').select('created_at, status'),
+        supabase.from('clients').select('*').order('created_at', { ascending: false }).limit(20),
+        supabase.from('payments').select('*, projects(name, client_id, clients(name))').order('payment_date', { ascending: false }).limit(20)
+    ]);
+
+    if (pError || prError || cError) {
+        throw new Error("Failed to fetch dashboard base data");
     }
 
-    const { data, error } = await query;
+    const periods: DateFilter[] = ['all', 'ytd', 'last_month', 'this_month'];
+    const stats: Record<DateFilter, any> = {} as any;
+    const periodLists: Record<DateFilter, { registrations: any[], transactions: any[] }> = {} as any;
 
-    if (error) throw error;
-    return data;
-}
+    // Pre-calculate ranges
+    const ranges = periods.reduce((acc, p) => {
+        acc[p] = getDateRange(p);
+        return acc;
+    }, {} as any);
 
-export async function getLatestTransactions(filter: DateFilter = 'all') {
-    const range = getDateRange(filter);
-    let query = supabase
-        .from('payments')
-        .select(`
-            *,
-            projects (name, client_id, clients (name))
-        `)
-        .order('payment_date', { ascending: false })
-        .limit(5);
+    // Calculate common "All Time" metrics first
+    const totalAllTimeRevenue = (allPayments || []).reduce((sum, p) => sum + Number(p.amount), 0);
+    const totalProjectValue = (allProjects || []).reduce((sum, p) => sum + Number(p.total_amount), 0);
+    const outstandingBalance = totalProjectValue - totalAllTimeRevenue;
+    const collectionRate = totalProjectValue > 0 ? (totalAllTimeRevenue / totalProjectValue) * 100 : 0;
 
-    if (range) {
-        query = query.gte('payment_date', range.start).lte('payment_date', range.end);
-    }
+    const startOfCurrentMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+    const mtdRevenue = (allPayments || [])
+        .filter((p: any) => p.payment_date && p.payment_date >= startOfCurrentMonth)
+        .reduce((sum: number, p: any) => sum + Number(p.amount), 0);
 
-    const { data, error } = await query;
+    const activeClientsCount = (allClients || []).filter(c => c.status === 'active').length;
 
-    if (error) throw error;
-    return data;
+    // Helper to filter data by range
+    const filterByRange = (data: any[], dateField: string, range: { start: string, end: string } | null) => {
+        if (!range) return data;
+        return data.filter(item => item[dateField] >= range.start && item[dateField] <= range.end);
+    };
+
+    periods.forEach(p => {
+        const range = ranges[p];
+
+        // Filter payments, projects, clients for this range
+        const pPayments = filterByRange(allPayments || [], 'payment_date', range);
+        const pProjects = filterByRange(allProjects || [], 'created_at', range);
+        const pClients = filterByRange(allClients || [], 'created_at', range);
+
+        stats[p] = {
+            periodRevenue: pPayments.reduce((sum, pay) => sum + Number(pay.amount), 0),
+            periodProjects: pProjects.length,
+            periodClients: pClients.length,
+            totalActiveClients: activeClientsCount,
+            outstandingBalance,
+            mtdRevenue,
+            collectionRate,
+        };
+
+        // Filter lists (use the limited 20 fetched earlier)
+        periodLists[p] = {
+            registrations: filterByRange(registrations || [], 'created_at', range).slice(0, 5),
+            transactions: filterByRange(transactions || [], 'payment_date', range).slice(0, 5),
+        };
+    });
+
+    const revenueChartData = await getRevenueChartData();
+    const outstandingByClient = await getOutstandingByClient();
+
+    return {
+        stats,
+        periodLists,
+        revenueChartData,
+        outstandingByClient
+    };
 }
 
 // ── Outstanding by Client ──

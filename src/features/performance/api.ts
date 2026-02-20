@@ -13,6 +13,17 @@ export async function getAgentTargets(agentId: string) {
     return data as SalesTarget[];
 }
 
+export async function getAgent(agentId: string) {
+    const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', agentId)
+        .single();
+
+    if (error) throw error;
+    return data as Profile;
+}
+
 export async function getAgents() {
     const { data, error } = await supabase
         .from('profiles')
@@ -25,9 +36,18 @@ export async function getAgents() {
 }
 
 export async function setSalesTarget(target: Omit<SalesTarget, 'id' | 'created_at'>) {
+    if (target.period_type === 'monthly') {
+        // Enforce YYYY-MM-01 format to prevent duplicate targets in the same month
+        const [y, mStr] = target.start_date.split('-');
+        const m = Number(mStr);
+        const endDay = new Date(Number(y), m, 0).getDate();
+        target.start_date = `${y}-${mStr}-01`;
+        target.end_date = `${y}-${mStr}-${endDay}`;
+    }
+
     const { data, error } = await supabase
         .from('sales_targets')
-        .insert(target)
+        .upsert(target, { onConflict: 'agent_id,period_type,start_date' })
         .select()
         .single();
 
@@ -128,14 +148,11 @@ export async function getFullAgentPerformance(agentId: string, baseDate?: Date):
     const month = now.getMonth();
 
     // Get all targets for this agent this year
-    const yearStart = new Date(year, 0, 1).toISOString();
-    const yearEnd = new Date(year, 11, 31, 23, 59, 59, 999).toISOString();
-
     let targetsQuery = supabase
         .from('sales_targets')
         .select('*')
-        .gte('start_date', yearStart)
-        .lte('start_date', yearEnd)
+        .gte('start_date', `${year}-01-01`)
+        .lte('start_date', `${year}-12-31`)
         .order('start_date');
 
     if (agentId !== 'all') {
@@ -150,15 +167,15 @@ export async function getFullAgentPerformance(agentId: string, baseDate?: Date):
     const aggregateTargetForMonth = (m: number) => {
         if (agentId !== 'all') {
             return targets.find(t => {
-                const tStart = new Date(t.start_date);
-                return t.period_type === 'monthly' && tStart.getFullYear() === year && tStart.getMonth() === m;
+                const [tYear, tMonth] = t.start_date.split('-');
+                return t.period_type === 'monthly' && Number(tYear) === year && (Number(tMonth) - 1) === m;
             })?.target_amount || 0;
         }
 
         // For 'all' agents, sum up targets for everyone
         return targets.filter(t => {
-            const tStart = new Date(t.start_date);
-            return t.period_type === 'monthly' && tStart.getFullYear() === year && tStart.getMonth() === m;
+            const [tYear, tMonth] = t.start_date.split('-');
+            return t.period_type === 'monthly' && Number(tYear) === year && (Number(tMonth) - 1) === m;
         }).reduce((sum, t) => sum + (t.target_amount || 0), 0);
     };
 
@@ -174,42 +191,45 @@ export async function getFullAgentPerformance(agentId: string, baseDate?: Date):
     let qtdSales = 0, qtdCollections = 0, qtdProjects = 0, qtdTarget = 0;
 
     for (const m of quarterMonths) {
-        if (m > month) break; // Only count months up to current
-        const range = getMonthRange(year, m);
-        const perf = await getAgentPerformance(agentId, range.start, range.end);
-        qtdSales += perf.totalSales;
-        qtdCollections += perf.totalCollections;
-        qtdProjects += perf.count;
-
-        // Sum monthly targets for QTD
         const mTarget = aggregateTargetForMonth(m);
         qtdTarget += mTarget || mtdTarget; // Fall back to current month target if not set
+
+        // Performance should only be counted up to the current month to avoid future dummy data
+        if (m <= month) {
+            const range = getMonthRange(year, m);
+            const perf = await getAgentPerformance(agentId, range.start, range.end);
+            qtdSales += perf.totalSales;
+            qtdCollections += perf.totalCollections;
+            qtdProjects += perf.count;
+        }
     }
 
     // YTD: sum all months Jan → current
     let ytdSales = 0, ytdCollections = 0, ytdProjects = 0, ytdTarget = 0;
 
-    for (let m = 0; m <= month; m++) {
-        // Reuse QTD data for months already calculated
-        if (quarterMonths.includes(m)) {
-            // Already counted in QTD loop — skip to avoid double-fetching
-            continue;
-        }
-        const range = getMonthRange(year, m);
-        const perf = await getAgentPerformance(agentId, range.start, range.end);
-        ytdSales += perf.totalSales;
-        ytdCollections += perf.totalCollections;
-        ytdProjects += perf.count;
-
+    for (let m = 0; m < 12; m++) {
         const mTarget = aggregateTargetForMonth(m);
         ytdTarget += mTarget || mtdTarget;
+
+        // Reuse QTD data for months already calculated (if they are prior to or equal to current month)
+        if (m <= month) {
+            if (quarterMonths.includes(m)) {
+                // Already counted in QTD loop — skip to avoid double-fetching
+                continue;
+            }
+            const range = getMonthRange(year, m);
+            const perf = await getAgentPerformance(agentId, range.start, range.end);
+            ytdSales += perf.totalSales;
+            ytdCollections += perf.totalCollections;
+            ytdProjects += perf.count;
+        }
     }
 
-    // Add QTD totals to YTD
+    // Add QTD performance totals to YTD
     ytdSales += qtdSales;
     ytdCollections += qtdCollections;
     ytdProjects += qtdProjects;
-    ytdTarget += qtdTarget;
+    // Do NOT add qtdTarget to ytdTarget since the loop already sums all 12 months of targets
 
     return {
         mtd: {
@@ -252,23 +272,24 @@ export async function getTeamLeaderboard(baseDate?: Date): Promise<LeaderboardEn
     const year = now.getFullYear();
     const month = now.getMonth();
     const mtdRange = getMonthRange(year, month);
+    const monthStr = String(month + 1).padStart(2, '0');
+
+    const endDay = new Date(year, month + 1, 0).getDate();
+    // Fetch all targets for this month, for all agents, to avoid N+1 querying
+    const { data: targetsData } = await supabase
+        .from('sales_targets')
+        .select('agent_id, target_amount')
+        .eq('period_type', 'monthly')
+        .gte('start_date', `${year}-${monthStr}-01`)
+        .lte('start_date', `${year}-${monthStr}-${endDay}`);
+
+    const targetMap = new Map((targetsData || []).map(t => [t.agent_id, Number(t.target_amount)]));
 
     const entries: LeaderboardEntry[] = [];
 
     for (const agent of agents) {
         const perf = await getAgentPerformance(agent.id, mtdRange.start, mtdRange.end);
-
-        const { data: tData } = await supabase
-            .from('sales_targets')
-            .select('target_amount')
-            .eq('agent_id', agent.id)
-            .eq('period_type', 'monthly')
-            .gte('start_date', mtdRange.start)
-            .lte('start_date', mtdRange.end)
-            .limit(1)
-            .single();
-
-        const target = tData?.target_amount || 0;
+        const target = targetMap.get(agent.id) || 0;
 
         entries.push({
             agent,
@@ -283,3 +304,99 @@ export async function getTeamLeaderboard(baseDate?: Date): Promise<LeaderboardEn
     entries.sort((a, b) => b.mtdAchievement - a.mtdAchievement);
     return entries;
 }
+
+export interface MonthlyBreakdownEntry {
+    monthName: string;
+    monthKey: string; // 'YYYY-MM'
+    sales: number;
+    collections: number;
+    target: number;
+    achievement: number;
+    lag: number;
+}
+
+export async function getAgentYearlyBreakdown(agentId: string, year: number): Promise<MonthlyBreakdownEntry[]> {
+    const startDate = `${year}-01-01T00:00:00Z`;
+    const endDate = `${year}-12-31T23:59:59Z`;
+
+    // 1. Fetch projects
+    let projectsQuery = supabase.from('projects').select('total_amount, created_at').eq('agent_id', agentId).gte('created_at', startDate).lte('created_at', endDate);
+    const { data: projects } = await projectsQuery;
+
+    // 2. Fetch payments
+    let paymentsQuery = supabase.from('payments').select('amount, payment_date, projects!inner(agent_id)').eq('projects.agent_id', agentId).gte('payment_date', startDate).lte('payment_date', endDate);
+    const { data: payments } = await paymentsQuery;
+
+    // 3. Fetch targets (use gte/lte to avoid TZ offsets stripping Jan targets)
+    const { data: targets } = await supabase.from('sales_targets').select('*').eq('agent_id', agentId).eq('period_type', 'monthly').gte('start_date', `${year}-01-01`).lte('start_date', `${year}-12-31`);
+
+    const breakdown: MonthlyBreakdownEntry[] = [];
+    const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+    for (let m = 0; m < 12; m++) {
+        const monthKey = `${year}-${String(m + 1).padStart(2, '0')}`;
+        const monthProjects = (projects || []).filter(p => Number(p.created_at.split('-')[1]) - 1 === m);
+        const monthPayments = (payments || []).filter(p => Number(p.payment_date.split('-')[1]) - 1 === m);
+        const monthTarget = (targets || []).find(t => Number(t.start_date.split('-')[1]) - 1 === m)?.target_amount || 0;
+
+        const sales = monthProjects.reduce((sum, p) => sum + Number(p.total_amount), 0);
+        const collections = monthPayments.reduce((sum, p) => sum + Number(p.amount), 0);
+
+        breakdown.push({
+            monthName: months[m],
+            monthKey,
+            sales,
+            collections,
+            target: monthTarget,
+            achievement: monthTarget > 0 ? (collections / monthTarget) * 100 : 0,
+            lag: monthTarget > collections ? monthTarget - collections : 0
+        });
+    }
+
+    return breakdown;
+}
+
+export async function updateAgentTarget(agentId: string, monthKey: string, amount: number, scope: 'specific' | 'future') {
+    const [year, month] = monthKey.split('-').map(Number);
+
+    // Create UTC-safe date strings for DB
+    const getSafeDates = (y: number, m: number) => {
+        const sMonth = String(m).padStart(2, '0');
+        // last day of month trick
+        const endDay = new Date(y, m, 0).getDate();
+        return {
+            start: `${y}-${sMonth}-01`,
+            end: `${y}-${sMonth}-${endDay}`
+        };
+    };
+
+    if (scope === 'specific') {
+        const d = getSafeDates(year, month);
+        // Upsert for specific month
+        const { error } = await supabase.from('sales_targets').upsert({
+            agent_id: agentId,
+            period_type: 'monthly',
+            start_date: d.start,
+            end_date: d.end,
+            target_amount: amount
+        }, { onConflict: 'agent_id,period_type,start_date' });
+        if (error) throw error;
+    } else {
+        // Future scope: update current and all remaining months of the year
+        const promises = [];
+        for (let m = month; m <= 12; m++) {
+            const d = getSafeDates(year, m);
+            promises.push(
+                supabase.from('sales_targets').upsert({
+                    agent_id: agentId,
+                    period_type: 'monthly',
+                    start_date: d.start,
+                    end_date: d.end,
+                    target_amount: amount
+                }, { onConflict: 'agent_id,period_type,start_date' })
+            );
+        }
+        await Promise.all(promises);
+    }
+}
+

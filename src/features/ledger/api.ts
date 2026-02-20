@@ -14,6 +14,10 @@ export async function getLedger() {
             total_amount,
             created_at,
             client_id,
+            agent_id,
+            profiles:profiles!agent_id (
+                full_name
+            ),
             clients (name),
             payments (amount)
         `)
@@ -33,6 +37,8 @@ export async function getLedger() {
             total_amount: p.total_amount,
             paid_amount,
             remaining_amount: p.total_amount - paid_amount,
+            agent_id: p.agent_id,
+            agent_name: p.profiles?.full_name,
             created_at: p.created_at
         };
     }) as ProjectLedger[];

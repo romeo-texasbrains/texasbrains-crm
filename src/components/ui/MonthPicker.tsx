@@ -4,6 +4,7 @@ import { Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
 interface MonthPickerProps {
     value: string; // Format: 'YYYY-MM'
     onChange: (value: string) => void;
+    variant?: 'default' | 'ghost';
 }
 
 const MONTHS = [
@@ -11,7 +12,7 @@ const MONTHS = [
     'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
 ];
 
-export const MonthPicker: React.FC<MonthPickerProps> = ({ value, onChange }) => {
+export const MonthPicker: React.FC<MonthPickerProps> = ({ value, onChange, variant = 'default' }) => {
     const [isOpen, setIsOpen] = useState(false);
 
     // Parse initial value robustly
@@ -58,11 +59,14 @@ export const MonthPicker: React.FC<MonthPickerProps> = ({ value, onChange }) => 
             <button
                 type="button"
                 onClick={() => setIsOpen(!isOpen)}
-                className="w-full flex items-center justify-between bg-white border border-gray-200 hover:border-panze-purple rounded-xl px-3 md:px-4 py-2 md:py-2.5 text-sm font-semibold text-gray-700 transition-all outline-none"
+                className={`w-full flex items-center justify-between rounded-xl px-3 py-1.5 transition-all outline-none ${variant === 'ghost'
+                        ? 'bg-transparent border-none'
+                        : 'bg-white border border-gray-200 hover:border-panze-purple'
+                    } text-sm font-semibold text-gray-700`}
             >
                 <div className="flex items-center gap-2 text-gray-700">
-                    <Calendar size={14} className="text-gray-400" />
-                    <span>{displayLabel}</span>
+                    <Calendar size={14} className={variant === 'ghost' ? 'text-panze-purple' : 'text-gray-400'} />
+                    <span className={variant === 'ghost' ? 'text-[11px] font-black uppercase tracking-[0.1em]' : ''}>{displayLabel}</span>
                 </div>
             </button>
 

@@ -12,67 +12,47 @@ import {
     UserPlus, DollarSign, AlertCircle, ChevronRight, Briefcase,
     CheckCircle, Inbox, Users
 } from 'lucide-react';
+import useSWR from 'swr';
 import {
-    getDashboardStats,
-    getRevenueChartData,
-    getLatestRegistrations,
-    getLatestTransactions,
-    getOutstandingByClient,
+    getComprehensiveDashboardData,
     OutstandingClient,
 } from '../api';
 import { AddClientModal } from '@/features/clients/components/AddClientModal';
 import { NewEntryModal } from './NewEntryModal';
 import { DashboardSkeleton } from './DashboardSkeleton';
+import { TargetProgressWidget } from './TargetProgressWidget';
+import { formatCurrency, formatDate } from '@/lib/utils';
 import { DateFilter } from '../api';
 
 export const DashboardGrid = () => {
     const [dateFilter, setDateFilter] = useState<DateFilter>('all');
-    const [stats, setStats] = useState({
-        periodRevenue: 0,
-        periodProjects: 0,
-        periodClients: 0,
-        totalActiveClients: 0,
-        outstandingBalance: 0,
-        mtdRevenue: 0,
-        collectionRate: 0,
-    });
-    const [revenueData, setRevenueData] = useState<any[]>([]);
-    const [registrations, setRegistrations] = useState<any[]>([]);
-    const [transactions, setTransactions] = useState<any[]>([]);
-    const [outstanding, setOutstanding] = useState<OutstandingClient[]>([]);
-    const [loading, setLoading] = useState(true);
+
+    const { data, error, isLoading, mutate } = useSWR(
+        'dashboard-data',
+        getComprehensiveDashboardData,
+        {
+            revalidateOnFocus: false, // Prevents excessive refetching while navigating SWR
+            revalidateIfStale: true,
+        }
+    );
+
     const [isClientModalOpen, setIsClientModalOpen] = useState(false);
     const [isEntryModalOpen, setIsEntryModalOpen] = useState(false);
 
-    async function loadDashboard() {
-        setLoading(true);
-        try {
-            const [s, r, reg, tra, ost] = await Promise.all([
-                getDashboardStats(dateFilter),
-                getRevenueChartData(),
-                getLatestRegistrations(dateFilter),
-                getLatestTransactions(dateFilter),
-                getOutstandingByClient(),
-            ]);
-            setStats(s);
-            setRevenueData(r);
-            setRegistrations(reg);
-            setTransactions(tra);
-            setOutstanding(ost);
-        } catch (err) {
-            console.error('Failed to load dashboard data:', err);
-        } finally {
-            setLoading(false);
-        }
-    }
+    const handleSuccess = () => {
+        mutate(); // Re-fetch data in the background and update the cache
+    };
 
-    useEffect(() => {
-        loadDashboard();
-    }, [dateFilter]);
-
-    if (loading) {
+    if ((isLoading && !data) || !data) {
         return <DashboardSkeleton />;
     }
+
+    const stats = data.stats[dateFilter];
+    const registrations = data.periodLists[dateFilter].registrations;
+    const transactions = data.periodLists[dateFilter].transactions;
+    const revenueData = data.revenueChartData;
+    const outstanding = data.outstandingByClient;
+
 
     return (
         <div className="space-y-6 md:space-y-8 animate-in fade-in duration-1000">
@@ -111,14 +91,14 @@ export const DashboardGrid = () => {
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
                 <StatCard
                     title={dateFilter === 'all' ? "Revenue Collected" : "Collected (Period)"}
-                    value={`$${stats.periodRevenue.toLocaleString()}`}
+                    value={formatCurrency(stats.periodRevenue)}
                     trend={{ value: dateFilter === 'this_month' ? 'This Month' : dateFilter === 'last_month' ? 'Last Month' : dateFilter === 'ytd' ? 'Year to Date' : 'All Time', isPositive: true }}
                     icon={CreditCard}
                     colorClass="bg-purple-100 text-purple-600"
                 />
                 <StatCard
                     title="MTD Collected"
-                    value={`$${stats.mtdRevenue.toLocaleString()}`}
+                    value={formatCurrency(stats.mtdRevenue)}
                     trend={{ value: "This Month", isPositive: true }}
                     icon={DollarSign}
                     colorClass="bg-blue-100 text-blue-600"
@@ -132,17 +112,20 @@ export const DashboardGrid = () => {
                 />
                 <StatCard
                     title="Outstanding"
-                    value={`$${stats.outstandingBalance.toLocaleString()}`}
+                    value={formatCurrency(stats.outstandingBalance)}
                     trend={{ value: `${stats.collectionRate.toFixed(0)}% collected`, isPositive: stats.collectionRate >= 50 }}
                     icon={Wallet}
                     colorClass="bg-orange-100 text-orange-600"
                 />
             </div>
 
-            {/* Charts + Outstanding Row */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Target Progress + Charts + Outstanding Row */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Target Progress */}
+                <TargetProgressWidget />
+
                 {/* Revenue Chart */}
-                <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
+                <div className="bg-white rounded-[32px] p-8 border border-gray-100 shadow-sm shadow-gray-200/50 flex flex-col h-full hover:shadow-md transition-all duration-500">
                     <div className="flex justify-between items-center mb-6">
                         <div className="flex items-center gap-2">
                             <TrendingUp size={16} className="text-panze-purple" />
@@ -178,7 +161,7 @@ export const DashboardGrid = () => {
                 </div>
 
                 {/* Outstanding by Client */}
-                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                <div className="bg-white rounded-[32px] border border-gray-100 shadow-sm shadow-gray-200/50 overflow-hidden hover:shadow-md transition-all duration-500">
                     <div className="flex justify-between items-center px-6 py-4 border-b border-gray-50">
                         <div className="flex items-center gap-2">
                             <AlertCircle size={16} className="text-orange-500" />
@@ -206,7 +189,7 @@ export const DashboardGrid = () => {
                                     </div>
                                     <div className="flex items-center gap-3">
                                         <div className="text-right">
-                                            <p className="text-sm font-bold text-orange-600 tabular-nums">${ost.outstanding.toLocaleString()}</p>
+                                            <p className="text-sm font-bold text-orange-600 tabular-nums">{formatCurrency(ost.outstanding)}</p>
                                             <div className="w-16 bg-gray-100 rounded-full h-1 mt-1">
                                                 <div className="bg-green-500 h-1 rounded-full" style={{ width: `${Math.min(paidPct, 100)}%` }} />
                                             </div>
@@ -232,7 +215,7 @@ export const DashboardGrid = () => {
             {/* Tables Row */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Latest Onboarding */}
-                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                <div className="bg-white rounded-[32px] border border-gray-100 shadow-sm shadow-gray-200/50 overflow-hidden hover:shadow-md transition-all duration-500">
                     <div className="flex justify-between items-center px-6 py-4 border-b border-gray-50">
                         <h3 className="text-sm font-bold text-gray-800">Recent Clients</h3>
                         <Link href="/clients" className="text-[10px] font-bold text-panze-purple uppercase tracking-widest hover:underline">
@@ -257,7 +240,7 @@ export const DashboardGrid = () => {
                                     </td>
                                     <td className="px-6 py-3 text-xs text-gray-400">{row.email || row.phone || '—'}</td>
                                     <td className="px-6 py-3 text-right text-xs font-medium text-gray-500 tabular-nums">
-                                        {new Date(row.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                                        {formatDate(row.created_at)}
                                     </td>
                                 </tr>
                             ))}
@@ -279,7 +262,7 @@ export const DashboardGrid = () => {
                 </div>
 
                 {/* Recent Payments */}
-                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                <div className="bg-white rounded-[32px] border border-gray-100 shadow-sm shadow-gray-200/50 overflow-hidden hover:shadow-md transition-all duration-500">
                     <div className="flex justify-between items-center px-6 py-4 border-b border-gray-50">
                         <h3 className="text-sm font-bold text-gray-800">Recent Payments</h3>
                         <Link href="/income" className="text-[10px] font-bold text-panze-purple uppercase tracking-widest hover:underline">
@@ -305,7 +288,7 @@ export const DashboardGrid = () => {
                                             </Link>
                                         )}
                                     </td>
-                                    <td className="px-6 py-3 text-right text-sm font-bold text-gray-800 tabular-nums">${Number(row.amount).toLocaleString()}</td>
+                                    <td className="px-6 py-3 text-right text-sm font-bold text-gray-800 tabular-nums">{formatCurrency(Number(row.amount))}</td>
                                     <td className="px-6 py-3 text-right">
                                         <span className={`inline-flex text-[10px] font-bold px-2 py-0.5 rounded-md ${row.is_verified ? 'text-green-700 bg-green-50' : 'text-amber-700 bg-amber-50'
                                             }`}>
@@ -333,8 +316,8 @@ export const DashboardGrid = () => {
             </div>
 
             {/* Modals */}
-            <AddClientModal isOpen={isClientModalOpen} onClose={() => setIsClientModalOpen(false)} onSuccess={loadDashboard} />
-            <NewEntryModal isOpen={isEntryModalOpen} onClose={() => setIsEntryModalOpen(false)} onSuccess={loadDashboard} />
+            <AddClientModal isOpen={isClientModalOpen} onClose={() => setIsClientModalOpen(false)} onSuccess={() => mutate()} />
+            <NewEntryModal isOpen={isEntryModalOpen} onClose={() => setIsEntryModalOpen(false)} onSuccess={() => mutate()} />
         </div>
     );
 };

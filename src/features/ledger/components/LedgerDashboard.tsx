@@ -8,33 +8,21 @@ import { getLedger } from '../api';
 import { ProjectLedger } from '@/lib/types';
 import { Briefcase, CheckCircle, Clock, FileText, Plus } from 'lucide-react';
 import { NewEntryModal } from '@/features/dashboard/components/NewEntryModal';
+import { formatCurrency } from '@/lib/utils';
+import useSWR from 'swr';
 
 export const LedgerDashboard = () => {
-    const [data, setData] = useState<ProjectLedger[]>([]);
-    const [loading, setLoading] = useState(true);
+    const { data = [], isLoading, mutate } = useSWR('ledger-data', getLedger, {
+        revalidateOnFocus: false,
+        revalidateIfStale: true,
+    });
     const [isModalOpen, setIsModalOpen] = useState(false);
-
-    async function loadLedger() {
-        setLoading(true);
-        try {
-            const d = await getLedger();
-            setData(d);
-        } catch (err) {
-            console.error('Failed to load ledger', err);
-        } finally {
-            setLoading(false);
-        }
-    }
-
-    useEffect(() => {
-        loadLedger();
-    }, []);
 
     const totalValue = data.reduce((sum, item) => sum + Number(item.total_amount), 0);
     const totalPaid = data.reduce((sum, item) => sum + Number(item.paid_amount), 0);
     const totalRemaining = data.reduce((sum, item) => sum + Number(item.remaining_amount), 0);
 
-    if (loading) return (
+    if (isLoading) return (
         <div className="h-96 flex items-center justify-center">
             <div className="w-8 h-8 border-4 border-panze-purple/20 border-t-panze-purple rounded-full animate-spin" />
         </div>
@@ -61,25 +49,25 @@ export const LedgerDashboard = () => {
             <NewEntryModal
                 isOpen={isModalOpen}
                 onClose={() => setIsModalOpen(false)}
-                onSuccess={loadLedger}
+                onSuccess={() => mutate()}
             />
 
             <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-6">
                 <StatCard
                     title="Contract Value"
-                    value={`$${totalValue.toLocaleString()}`}
+                    value={formatCurrency(totalValue)}
                     icon={Briefcase}
                     colorClass="bg-blue-50 text-blue-600"
                 />
                 <StatCard
                     title="Collected"
-                    value={`$${totalPaid.toLocaleString()}`}
+                    value={formatCurrency(totalPaid)}
                     icon={CheckCircle}
                     colorClass="bg-green-50 text-green-600"
                 />
                 <StatCard
                     title="Outstanding"
-                    value={`$${totalRemaining.toLocaleString()}`}
+                    value={formatCurrency(totalRemaining)}
                     icon={Clock}
                     colorClass="bg-orange-50 text-orange-600"
                 />
